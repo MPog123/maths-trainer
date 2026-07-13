@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Maths Trainer</title>
+
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Maths Trainer">
+  <meta name="theme-color" content="#4f46e5">
+
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- ============ HOME: topic select ============ -->
+  <div class="screen active" id="screen-home">
+    <header class="app-header">
+      <h1>Maths Trainer</h1>
+      <p class="tagline">Pick a topic to practise!</p>
+    </header>
+    <div class="card-list" id="topic-list"></div>
+    <footer class="app-footer">
+      <span id="total-stars"></span>
+    </footer>
+  </div>
+
+  <!-- ============ SUBTOPIC select ============ -->
+  <div class="screen" id="screen-subtopic">
+    <header class="nav-header">
+      <button class="btn-back" id="btn-back-home" aria-label="Back">&#8249;</button>
+      <h2 id="subtopic-title">Topic</h2>
+    </header>
+    <div class="card-list" id="subtopic-list"></div>
+  </div>
+
+  <!-- ============ QUIZ ============ -->
+  <div class="screen" id="screen-quiz">
+    <header class="quiz-header">
+      <button class="btn-quit" id="btn-quit" aria-label="Quit">&#10005;</button>
+      <div class="quiz-progress" id="quiz-progress">1/10</div>
+      <div class="quiz-timer" id="quiz-timer">0:00</div>
+      <div class="quiz-streak" id="quiz-streak">&#128293; 0</div>
+    </header>
+
+    <div class="quiz-body">
+      <div class="question-area">
+        <!-- inline question, e.g. 47 + 28 = -->
+        <div class="question-inline" id="question-inline"></div>
+
+        <!-- vertical (written) question layout -->
+        <div class="question-vertical" id="question-vertical">
+          <div class="v-rows" id="v-rows"></div>
+          <div class="v-line"></div>
+          <div class="v-answer" id="v-answer">&nbsp;</div>
+        </div>
+
+        <!-- typed answer for inline questions -->
+        <div class="answer-box" id="answer-box">&nbsp;</div>
+
+        <div class="feedback" id="feedback"></div>
+      </div>
+
+      <div class="scratch-wrap" id="scratch-wrap">
+        <div class="scratch-toolbar">
+          <span class="scratch-label">&#9999;&#65039; Working out</span>
+          <button class="btn-small" id="btn-clear-scratch">Clear</button>
+        </div>
+        <canvas id="scratchpad"></canvas>
+      </div>
+
+      <div class="numpad" id="numpad">
+        <button class="key" data-key="7">7</button>
+        <button class="key" data-key="8">8</button>
+        <button class="key" data-key="9">9</button>
+        <button class="key" data-key="4">4</button>
+        <button class="key" data-key="5">5</button>
+        <button class="key" data-key="6">6</button>
+        <button class="key" data-key="1">1</button>
+        <button class="key" data-key="2">2</button>
+        <button class="key" data-key="3">3</button>
+        <button class="key key-del" data-key="del">&#9003;</button>
+        <button class="key" data-key="0">0</button>
+        <button class="key key-go" data-key="go">&#10003;</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ RESULTS ============ -->
+  <div class="screen" id="screen-results">
+    <div class="results-card">
+      <h2 id="results-heading">Round Complete!</h2>
+      <div class="results-emoji" id="results-emoji">&#127881;</div>
+      <div class="results-grid">
+        <div class="result-stat">
+          <div class="result-value" id="res-score">0</div>
+          <div class="result-label">Score</div>
+        </div>
+        <div class="result-stat">
+          <div class="result-value" id="res-correct">0/10</div>
+          <div class="result-label">Correct</div>
+        </div>
+        <div class="result-stat">
+          <div class="result-value" id="res-time">0:00</div>
+          <div class="result-label">Time</div>
+        </div>
+        <div class="result-stat">
+          <div class="result-value" id="res-streak">0</div>
+          <div class="result-label">Best Streak</div>
+        </div>
+      </div>
+      <div class="records" id="records"></div>
+      <div class="results-buttons">
+        <button class="btn-primary" id="btn-play-again">Play Again</button>
+        <button class="btn-secondary" id="btn-results-home">Home</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
