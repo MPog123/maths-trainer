@@ -1,15 +1,23 @@
 # Maths Trainer
 
-A simple, installable web app (PWA) for Year 6 addition and subtraction practice.
-Question types mirror the printed worksheets (`addition.tex` / `subtraction.tex`):
+A simple, installable web app (PWA) for Year 6 maths practice.
+Question types mirror the printed worksheets (`addition.tex`, `subtraction.tex`,
+`multiplication.tex`, `division.tex`, `measurement_conversion.tex`):
 
 | Topic | Subtopics |
 |---|---|
-| Addition | Written Addition, Mental Addition, Mental Addition: 3+ Numbers |
-| Subtraction | Written Subtraction, Mental Subtraction, Mental Subtraction: 3+ Numbers |
+| Addition | Written, Mental, Mental: 3+ Numbers |
+| Subtraction | Written, Mental, Mental: 3+ Numbers |
+| Multiplication | Written, Worded, Mental, Multiplying Three Numbers |
+| Division | Division Facts, Long Division, Long Division with Remainders, Worded, Regular Practice |
+| Measurement Conversion | m↔cm, kg↔g, cm↔mm, L↔mL, km↔m |
 
-Questions are generated with the same digit-length patterns as the worksheets, and
-subtraction questions are always non-negative (like `make_new_subtraction_sheet.py`).
+Questions are generated with the same digit-length patterns as the worksheets.
+Subtraction questions are always non-negative, division questions are constructed
+so answers come out whole (with guaranteed remainders in the remainder modes),
+and conversion questions keep decimal values to at most 2 decimal places.
+Remainder questions use a second "R" input box; conversion answers that need a
+decimal point enable the "." key on the number pad.
 
 Each subtopic is split into **difficulty levels** that follow the worksheet
 progression (e.g. Mental Addition: 2-digit + 2-digit up to 4-digit + 3-digit),

@@ -69,8 +69,16 @@
           <div class="v-answer" id="v-answer">&nbsp;</div>
         </div>
 
-        <!-- typed answer for inline questions -->
-        <div class="answer-box" id="answer-box">&nbsp;</div>
+        <!-- long division layout, e.g. 4 ) 648 -->
+        <div class="question-longdiv" id="question-longdiv">
+          <span class="ld-divisor" id="ld-divisor"></span><span class="ld-dividend" id="ld-dividend"></span>
+        </div>
+
+        <!-- typed answer for inline/longdiv questions (+ remainder box) -->
+        <div class="answer-row" id="answer-row">
+          <div class="answer-box" id="answer-box">&nbsp;</div>
+          <div class="answer-box answer-rem" id="answer-box-r"><span class="r-tag">R</span>&nbsp;</div>
+        </div>
 
         <div class="feedback" id="feedback"></div>
       </div>
@@ -93,9 +101,10 @@
         <button class="key" data-key="1">1</button>
         <button class="key" data-key="2">2</button>
         <button class="key" data-key="3">3</button>
-        <button class="key key-del" data-key="del">&#9003;</button>
+        <button class="key key-dot" data-key="." id="key-dot">.</button>
         <button class="key" data-key="0">0</button>
-        <button class="key key-go" data-key="go">&#10003;</button>
+        <button class="key key-del" data-key="del">&#9003;</button>
+        <button class="key key-go key-wide" data-key="go">&#10003;</button>
       </div>
     </div>
   </div>
