@@ -11,6 +11,11 @@ Question types mirror the printed worksheets (`addition.tex` / `subtraction.tex`
 Questions are generated with the same digit-length patterns as the worksheets, and
 subtraction questions are always non-negative (like `make_new_subtraction_sheet.py`).
 
+Each subtopic is split into **difficulty levels** that follow the worksheet
+progression (e.g. Mental Addition: 2-digit + 2-digit up to 4-digit + 3-digit),
+plus a **Mixed** level that draws from all difficulties. Records are tracked
+per level.
+
 ## Features
 
 - Rounds of 10 questions, one at a time, with a big friendly number pad

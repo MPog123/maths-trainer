@@ -1,4 +1,4 @@
-const CACHE_NAME = "y6maths-v1";
+const CACHE_NAME = "y6maths-v2";
 
 const ASSETS = [
   "./",

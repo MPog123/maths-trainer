@@ -1,14 +1,53 @@
 "use strict";
 
 /* ==========================================================================
-   Topics & question shapes
+   Topics, subtopics & difficulty levels
    Each "shape" is a list of digit counts, mirroring the printed worksheets:
    e.g. [3, 2] means a 3-digit number (+/-) a 2-digit number.
+   Levels follow the worksheet progression; every subtopic also gets an
+   automatic "Mixed" level that draws from all of its shapes.
    For subtraction, generated questions always satisfy:
        first - (sum of the rest) >= 0
    ========================================================================== */
 
 const QUESTIONS_PER_ROUND = 10;
+
+function makeSubtopics(topicName, symbol) {
+  const j = (parts) => parts.join(` ${symbol} `);
+  return {
+    written: {
+      name: `Written ${topicName}`,
+      desc: "Column method — use the working-out pad",
+      written: true,
+      levels: [
+        { id: "l1", name: j(["2-digit", "2-digit"]), shapes: [[2, 2]] },
+        { id: "l2", name: j(["3/4-digit", "2-digit"]), shapes: [[3, 2], [4, 2]] },
+        { id: "l3", name: j(["3/4-digit", "3-digit"]), shapes: [[3, 3], [4, 3]] },
+        { id: "l4", name: j(["4/5-digit", "3/4-digit"]), shapes: [[5, 3], [4, 4], [5, 4]] },
+      ],
+    },
+    mental: {
+      name: `Mental ${topicName}`,
+      desc: "Two numbers, all in your head",
+      levels: [
+        { id: "l1", name: j(["2-digit", "2-digit"]), shapes: [[2, 2]] },
+        { id: "l2", name: j(["3-digit", "2-digit"]), shapes: [[3, 2]] },
+        { id: "l3", name: j(["4-digit", "2-digit"]), shapes: [[4, 2]] },
+        { id: "l4", name: j(["3-digit", "3-digit"]), shapes: [[3, 3]] },
+        { id: "l5", name: j(["4-digit", "3-digit"]), shapes: [[4, 3]] },
+      ],
+    },
+    mental3: {
+      name: `Mental ${topicName}: 3+ Numbers`,
+      desc: "Three or four numbers, all in your head",
+      levels: [
+        { id: "l1", name: "Three 2-digit numbers", shapes: [[2, 2, 2]] },
+        { id: "l2", name: "Four 2-digit numbers", shapes: [[2, 2, 2, 2]] },
+        { id: "l3", name: "One 3-digit, two 2-digit", shapes: [[3, 2, 2]] },
+      ],
+    },
+  };
+}
 
 const TOPICS = {
   addition: {
@@ -16,50 +55,29 @@ const TOPICS = {
     symbol: "+",
     icon: "+",
     color: "linear-gradient(135deg, #34d399, #059669)",
-    subtopics: {
-      written: {
-        name: "Written Addition",
-        desc: "Column method — use the working-out pad",
-        written: true,
-        shapes: [[2, 2], [3, 2], [4, 2], [3, 3], [4, 3], [5, 3], [4, 4], [5, 4]],
-      },
-      mental: {
-        name: "Mental Addition",
-        desc: "Two numbers, all in your head",
-        shapes: [[2, 2], [3, 2], [4, 2], [3, 3], [4, 3]],
-      },
-      mental3: {
-        name: "Mental Addition: 3+ Numbers",
-        desc: "Add three or four numbers in your head",
-        shapes: [[2, 2, 2], [2, 2, 2, 2], [3, 2, 2]],
-      },
-    },
+    subtopics: makeSubtopics("Addition", "+"),
   },
   subtraction: {
     name: "Subtraction",
     symbol: "−",
     icon: "−",
     color: "linear-gradient(135deg, #60a5fa, #4f46e5)",
-    subtopics: {
-      written: {
-        name: "Written Subtraction",
-        desc: "Column method — use the working-out pad",
-        written: true,
-        shapes: [[2, 2], [3, 2], [4, 2], [3, 3], [4, 3], [5, 3], [4, 4], [5, 4]],
-      },
-      mental: {
-        name: "Mental Subtraction",
-        desc: "Two numbers, all in your head",
-        shapes: [[2, 2], [3, 2], [4, 2], [3, 3], [4, 3]],
-      },
-      mental3: {
-        name: "Mental Subtraction: 3+ Numbers",
-        desc: "Subtract two or three numbers in your head",
-        shapes: [[2, 2, 2], [2, 2, 2, 2], [3, 2, 2]],
-      },
-    },
+    subtopics: makeSubtopics("Subtraction", "−"),
   },
 };
+
+/* Every subtopic gets a synthetic "Mixed" level drawing from all shapes. */
+function levelsOf(sub) {
+  const allShapes = sub.levels.flatMap((l) => l.shapes);
+  return [
+    ...sub.levels,
+    { id: "mixed", name: "Mixed — All Difficulties", shapes: allShapes, mixed: true },
+  ];
+}
+
+function getLevel(sub, levelId) {
+  return levelsOf(sub).find((l) => l.id === levelId);
+}
 
 /* ==========================================================================
    Question generation
@@ -89,10 +107,10 @@ function generateQuestion(topicId, shape) {
   return { numbers: [99, 11], answer: 88 };
 }
 
-function buildRound(topicId, sub) {
+function buildRound(topicId, shapes) {
   const questions = [];
   for (let i = 0; i < QUESTIONS_PER_ROUND; i++) {
-    const shape = sub.shapes[randInt(0, sub.shapes.length - 1)];
+    const shape = shapes[randInt(0, shapes.length - 1)];
     questions.push(generateQuestion(topicId, shape));
   }
   return questions;
@@ -106,24 +124,38 @@ function parSeconds(question, written) {
 
 /* ==========================================================================
    Persistent stats (localStorage)
+   Keys are "topic.subtopic.level", e.g. "addition.mental.l2".
    ========================================================================== */
 
 const STORAGE_KEY = "y6maths-stats-v1";
 
 function loadStats() {
+  let stats;
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
+    stats = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
   } catch {
-    return {};
+    stats = {};
   }
+  // Migrate pre-difficulty stats ("addition.written") to the Mixed level,
+  // since old rounds drew from all shapes.
+  let changed = false;
+  for (const key of Object.keys(stats)) {
+    if (key.split(".").length === 2) {
+      stats[`${key}.mixed`] = stats[key];
+      delete stats[key];
+      changed = true;
+    }
+  }
+  if (changed) saveStats(stats);
+  return stats;
 }
 
 function saveStats(stats) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(stats));
 }
 
-function statsFor(stats, topicId, subId) {
-  const key = `${topicId}.${subId}`;
+function statsFor(stats, topicId, subId, levelId) {
+  const key = `${topicId}.${subId}.${levelId}`;
   if (!stats[key]) {
     stats[key] = {
       bestScore: 0,
@@ -144,6 +176,14 @@ function formatMs(ms) {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
+function statChips(s) {
+  const chips = [];
+  if (s.bestScore > 0) chips.push(`\u{1F3C6} Best: ${s.bestScore}`);
+  if (s.bestStreak > 0) chips.push(`\u{1F525} Streak: ${s.bestStreak}`);
+  if (s.bestTimeMs != null) chips.push(`⏱️ ${formatMs(s.bestTimeMs)}`);
+  return chips;
+}
+
 /* ==========================================================================
    DOM helpers & screens
    ========================================================================== */
@@ -153,6 +193,7 @@ const $ = (id) => document.getElementById(id);
 const screens = {
   home: $("screen-home"),
   subtopic: $("screen-subtopic"),
+  level: $("screen-level"),
   quiz: $("screen-quiz"),
   results: $("screen-results"),
 };
@@ -169,6 +210,7 @@ function showScreen(name) {
 const state = {
   topicId: null,
   subId: null,
+  levelId: null,
   questions: [],
   index: 0,
   typed: "",
@@ -183,7 +225,7 @@ const state = {
 };
 
 /* ==========================================================================
-   Home & subtopic screens
+   Home, subtopic & level screens
    ========================================================================== */
 
 function renderHome() {
@@ -219,11 +261,15 @@ function openTopic(topicId) {
   const stats = loadStats();
 
   for (const [subId, sub] of Object.entries(topic.subtopics)) {
-    const s = statsFor(stats, topicId, subId);
-    const chips = [];
-    if (s.bestScore > 0) chips.push(`\u{1F3C6} Best: ${s.bestScore}`);
-    if (s.bestStreak > 0) chips.push(`\u{1F525} Streak: ${s.bestStreak}`);
-    if (s.bestTimeMs != null) chips.push(`⏱️ ${formatMs(s.bestTimeMs)}`);
+    // Aggregate records across this subtopic's levels for the card chips.
+    const agg = { bestScore: 0, bestStreak: 0, bestTimeMs: null };
+    for (const level of levelsOf(sub)) {
+      const s = stats[`${topicId}.${subId}.${level.id}`];
+      if (!s) continue;
+      agg.bestScore = Math.max(agg.bestScore, s.bestScore);
+      agg.bestStreak = Math.max(agg.bestStreak, s.bestStreak);
+    }
+    const chips = statChips(agg);
     if (chips.length === 0) chips.push("New!");
 
     const card = document.createElement("button");
@@ -231,25 +277,57 @@ function openTopic(topicId) {
     card.innerHTML = `
       <div>
         <div class="card-title">${sub.name}</div>
-        <div class="card-sub">${sub.desc}</div>
+        <div class="card-sub">${sub.desc} · ${levelsOf(sub).length} difficulty levels</div>
       </div>
       <div class="mini-stats">${chips.map((c) => `<span class="mini-stat">${c}</span>`).join("")}</div>`;
-    card.addEventListener("click", () => startRound(topicId, subId));
+    card.addEventListener("click", () => openLevels(topicId, subId));
     list.appendChild(card);
   }
 
   showScreen("subtopic");
 }
 
+function openLevels(topicId, subId) {
+  state.topicId = topicId;
+  state.subId = subId;
+  const sub = TOPICS[topicId].subtopics[subId];
+  $("level-title").textContent = sub.name;
+
+  const list = $("level-list");
+  list.innerHTML = "";
+  const stats = loadStats();
+
+  levelsOf(sub).forEach((level, i) => {
+    const s = statsFor(stats, topicId, subId, level.id);
+    const chips = statChips(s);
+    if (chips.length === 0) chips.push("New!");
+
+    const label = level.mixed ? level.name : `Level ${i + 1}: ${level.name}`;
+    const card = document.createElement("button");
+    card.className = "subtopic-card";
+    card.innerHTML = `
+      <div>
+        <div class="card-title">${level.mixed ? "\u{1F3B2} " : ""}${label}</div>
+      </div>
+      <div class="mini-stats">${chips.map((c) => `<span class="mini-stat">${c}</span>`).join("")}</div>`;
+    card.addEventListener("click", () => startRound(topicId, subId, level.id));
+    list.appendChild(card);
+  });
+
+  showScreen("level");
+}
+
 /* ==========================================================================
    Quiz flow
    ========================================================================== */
 
-function startRound(topicId, subId) {
+function startRound(topicId, subId, levelId) {
   const sub = TOPICS[topicId].subtopics[subId];
+  const level = getLevel(sub, levelId);
   state.topicId = topicId;
   state.subId = subId;
-  state.questions = buildRound(topicId, sub);
+  state.levelId = levelId;
+  state.questions = buildRound(topicId, level.shapes);
   state.index = 0;
   state.correctCount = 0;
   state.score = 0;
@@ -314,7 +392,7 @@ function showQuestion() {
 
 function updateTypedDisplay() {
   const sub = currentSub();
-  const text = state.typed === "" ? " " : state.typed;
+  const text = state.typed === "" ? " " : state.typed;
   if (sub.written) {
     $("v-answer").textContent = text;
   } else {
@@ -396,7 +474,7 @@ function finishRound() {
 
   // Update persistent stats
   const stats = loadStats();
-  const s = statsFor(stats, state.topicId, state.subId);
+  const s = statsFor(stats, state.topicId, state.subId, state.levelId);
   const records = [];
 
   if (state.score > s.bestScore) {
@@ -447,7 +525,7 @@ function finishRound() {
 
 function quitRound() {
   clearInterval(state.timerInterval);
-  openTopic(state.topicId);
+  openLevels(state.topicId, state.subId);
 }
 
 /* ==========================================================================
@@ -515,6 +593,10 @@ $("btn-back-home").addEventListener("click", () => {
   showScreen("home");
 });
 
+$("btn-back-subtopic").addEventListener("click", () => {
+  openTopic(state.topicId);
+});
+
 $("btn-quit").addEventListener("click", quitRound);
 $("btn-clear-scratch").addEventListener("click", clearScratchpad);
 
@@ -532,11 +614,11 @@ window.addEventListener("keydown", (e) => {
 });
 
 $("btn-play-again").addEventListener("click", () =>
-  startRound(state.topicId, state.subId)
+  startRound(state.topicId, state.subId, state.levelId)
 );
 
 $("btn-results-home").addEventListener("click", () => {
-  openTopic(state.topicId);
+  openLevels(state.topicId, state.subId);
 });
 
 // Register the service worker so the app works offline once installed.
