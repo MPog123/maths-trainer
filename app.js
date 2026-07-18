@@ -131,6 +131,7 @@ const SLOTS = {
   int: ["main"],
   decimal: ["main"],
   remainder: ["main", "rem"],
+  pair: ["main", "rem"], // two labeled values, e.g. (x, y) or h : min
   fraction: ["num", "den"],
   mixed: ["whole", "num", "den"],
   mcq: [],
@@ -318,7 +319,7 @@ function showQuestion() {
   $("answer-row").classList.toggle("hidden", isWritten || type === "mcq" || type === "fraction" || type === "mixed");
   $("answer-frac").classList.toggle("active", type === "fraction" || type === "mixed");
   $("frac-whole").classList.toggle("hidden", type !== "mixed");
-  $("answer-box-r").classList.toggle("active", type === "remainder");
+  $("answer-box-r").classList.toggle("active", type === "remainder" || type === "pair");
 
   // numpad vs multiple choice
   $("numpad").classList.toggle("hidden", type === "mcq");
@@ -370,11 +371,13 @@ function updateTypedDisplay() {
   const boxes = slotBoxes();
   const slots = SLOTS[type];
   const multi = slots.length > 1;
+  const labels = q.labels || (type === "remainder" ? [null, "R"] : []);
   for (const slot of slots) {
     const box = boxes[slot];
     const value = state.slotVals[slot];
     let html = value === "" ? "&nbsp;" : value;
-    if (slot === "rem") html = `<span class="r-tag">R</span>` + html;
+    if (slot === "rem") html = `<span class="r-tag">${labels[1] ?? "R"}</span>` + html;
+    if (slot === "main" && labels[0]) html = `<span class="r-tag">${labels[0]}</span>` + html;
     if (slot === "main" && q.unit) html += `<span class="unit">${q.unit}</span>`;
     box.innerHTML = html;
     box.classList.toggle("focus", multi && state.activeSlot === slot);
@@ -426,8 +429,10 @@ function pressKey(key) {
 }
 
 function answerText(q) {
+  if (q.answerText) return q.answerText;
   const type = inputType(q);
   if (type === "remainder") return `${q.answer} R ${q.remainder}`;
+  if (type === "pair") return `${q.answer}, ${q.answer2}`;
   if (type === "fraction") return `${q.answerNum}/${q.answerDen}`;
   if (type === "mixed") return `${q.answerWhole} ${q.answerNum}/${q.answerDen}`;
   if (type === "mcq") return q.answerLabel;
@@ -439,6 +444,9 @@ function checkAnswer(q) {
   const v = state.slotVals;
   if (type === "remainder") {
     return parseInt(v.main, 10) === q.answer && parseInt(v.rem, 10) === q.remainder;
+  }
+  if (type === "pair") {
+    return parseInt(v.main, 10) === q.answer && parseInt(v.rem, 10) === q.answer2;
   }
   if (type === "decimal") {
     return Math.abs(parseFloat(v.main) - q.answer) < 1e-6;

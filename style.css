@@ -294,6 +294,27 @@ body {
 
 .tfrac .tf-d { padding: 1px 6px 0; }
 
+/* timetable questions */
+.ttable {
+  margin: 4px auto 10px;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.ttable th, .ttable td {
+  border: 2px solid var(--primary-soft);
+  padding: 5px 10px;
+  text-align: center;
+}
+
+.ttable th {
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.tt-q { margin-top: 6px; }
+
 .question-longdiv {
   display: none;
   width: fit-content;

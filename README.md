@@ -16,6 +16,11 @@ Question types mirror the printed worksheets (`addition.tex`, `subtraction.tex`,
 | 2D Shapes | Name the Shape, Perimeter, Area, Types of Angles, Missing Angles, Classify the Triangle |
 | 3D Shapes | Name the Shape, Count the Cubes, Faces/Edges/Vertices, Volume, Match the Nets, Surface Area |
 | Chance | Chance Words, Probability as Fractions, as Decimals & %, Worded Probability |
+| Percentages | ↔ Fractions & Decimals, Percentage of a Number, Worded Percentages |
+| Coordinates | The Cartesian Plane (read, find, four quadrants, moves) |
+| Data & Graphs | Column Graphs, Line Graphs, Picture Graphs |
+| Time | Read the Clock, 24-Hour Time, Elapsed Time, Timetables |
+| Patterns & Order of Operations | Number Patterns, Order of Operations, Missing Numbers |
 
 Questions are generated with the same digit-length patterns as the worksheets.
 Subtraction questions are always non-negative, division questions are constructed

@@ -1852,6 +1852,717 @@ function probWordedGen() {
 }
 
 /* ==========================================================================
+   Percentages
+   ========================================================================== */
+
+function pctToFracGen() {
+  const p = pick([5, 10, 20, 25, 30, 40, 50, 60, 70, 75, 80, 90]);
+  const [sn, sd] = simplifyFrac(p, 100);
+  return {
+    kind: "inline",
+    text: `Convert ${p}% to a fraction`,
+    input: "fraction",
+    answerNum: sn,
+    answerDen: sd,
+    parSec: 15,
+  };
+}
+
+function pctToDecGen() {
+  const p = randInt(1, 99);
+  return {
+    kind: "inline",
+    text: `Write ${p}% as a decimal`,
+    answer: p / 100,
+    decimals: true,
+    parSec: 12,
+  };
+}
+
+function toPctGen() {
+  if (Math.random() < 0.5) {
+    for (let attempt = 0; attempt < 100; attempt++) {
+      const d = pick([2, 4, 5, 10, 20, 25, 50]);
+      const n = randInt(1, d - 1);
+      if (gcd(n, d) !== 1) continue;
+      return {
+        kind: "inline",
+        textHtml: `Write ${fracHtml(n, d)} as a percentage`,
+        text: `Write ${n}/${d} as a percentage`,
+        unit: "%",
+        answer: (n * 100) / d,
+        parSec: 15,
+      };
+    }
+  }
+  const k = randInt(1, 99);
+  const dec = k % 10 === 0 ? `0.${k / 10}` : `0.${String(k).padStart(2, "0")}`;
+  return { kind: "inline", text: `Write ${dec} as a percentage`, unit: "%", answer: k, parSec: 12 };
+}
+
+function pctOfNumberGen(pool) {
+  return () => {
+    const p = pick(pool);
+    const g = gcd(p, 100);
+    const base = (100 / g) * randInt(1, 12);
+    return {
+      kind: "inline",
+      text: `What is ${p}% of ${base}?`,
+      answer: (p * base) / 100,
+      parSec: 20,
+    };
+  };
+}
+
+const PCT_ITEMS = ["jacket", "skateboard", "backpack", "video game", "pair of shoes", "scooter"];
+const PCT_NAMES = ["Ava", "Ben", "Mia", "Leo", "Zoe", "Sam"];
+
+function pctWordGen(hard) {
+  return () => {
+    const roll = Math.random();
+    if (roll < 0.4) {
+      const p = hard ? pick([5, 20, 30, 40, 75]) : pick([10, 25, 50]);
+      const g = gcd(p, 100);
+      const price = (100 / g) * randInt(1, hard ? 8 : 4);
+      return {
+        kind: "inline",
+        wordy: true,
+        text: `A ${pick(PCT_ITEMS)} costs $${price}. It is ${p}% off in a sale. How much money do you save? ($)`,
+        answer: (p * price) / 100,
+        parSec: 25,
+      };
+    }
+    if (roll < 0.7) {
+      const p = hard ? pick([5, 15, 20, 30, 60, 80]) : pick([10, 25, 50]);
+      const g = gcd(p, 100);
+      const n = (100 / g) * randInt(1, hard ? 6 : 4);
+      return {
+        kind: "inline",
+        wordy: true,
+        text: `There are ${n} students at a school. ${p}% of them walk to school. How many students walk to school?`,
+        answer: (p * n) / 100,
+        parSec: 25,
+      };
+    }
+    const N = pick(hard ? [20, 25, 50] : [10, 50, 100]);
+    const k = randInt(1, N - 1);
+    return {
+      kind: "inline",
+      wordy: true,
+      text: `${pick(PCT_NAMES)} scored ${k} out of ${N} on a quiz. What is that score as a percentage?`,
+      unit: "%",
+      answer: (k * 100) / N,
+      parSec: 25,
+    };
+  };
+}
+
+/* ==========================================================================
+   Coordinates (Cartesian plane)
+   ========================================================================== */
+
+function cartesianSvg(lo, hi, marks) {
+  const size = 210;
+  const pad = 26;
+  const u = size / (hi - lo);
+  const X = (x) => pad + (x - lo) * u;
+  const Y = (y) => 8 + (hi - y) * u;
+  let inner = "";
+  // grid lines
+  for (let i = lo; i <= hi; i++) {
+    inner += `<line x1="${X(i)}" y1="${Y(lo)}" x2="${X(i)}" y2="${Y(hi)}" stroke="#d5d9f0" stroke-width="1"/>`;
+    inner += `<line x1="${X(lo)}" y1="${Y(i)}" x2="${X(hi)}" y2="${Y(i)}" stroke="#d5d9f0" stroke-width="1"/>`;
+  }
+  // axes (at 0 if inside range, else on the lo edges)
+  const ax = lo <= 0 && 0 <= hi ? 0 : lo;
+  inner += `<line x1="${X(lo)}" y1="${Y(ax)}" x2="${X(hi)}" y2="${Y(ax)}" stroke="${INK}" stroke-width="2"/>`;
+  inner += `<line x1="${X(ax)}" y1="${Y(lo)}" x2="${X(ax)}" y2="${Y(hi)}" stroke="${INK}" stroke-width="2"/>`;
+  // numbers
+  for (let i = lo; i <= hi; i++) {
+    if (i === 0 && lo < 0) continue;
+    inner += txt(X(i), Y(ax) + 16, String(i), 9, SOFT);
+    if (i !== ax || lo >= 0) inner += txt(X(ax) - 9, Y(i) + 3, String(i), 9, SOFT);
+  }
+  for (const m of marks) {
+    inner += `<circle cx="${X(m.x)}" cy="${Y(m.y)}" r="5.5" fill="${m.color || "#ef4444"}" stroke="${INK}" stroke-width="1.5"/>`;
+    if (m.label) inner += txt(X(m.x) + 11, Y(m.y) - 7, m.label, 13, INK, "start");
+  }
+  return svgEl(size + pad + 14, size + 34, inner);
+}
+
+function readPointGen() {
+  const x = randInt(1, 7);
+  let y = randInt(1, 7);
+  if (y === x) y = x === 7 ? 6 : x + 1;
+  return {
+    kind: "inline",
+    svg: cartesianSvg(0, 8, [{ x, y }]),
+    text: "What are the coordinates of the point?",
+    wordy: true,
+    input: "pair",
+    labels: ["x", "y"],
+    answer: x,
+    answer2: y,
+    answerText: `(${x}, ${y})`,
+    parSec: 15,
+  };
+}
+
+function whichPointGen() {
+  for (let attempt = 0; attempt < 100; attempt++) {
+    const x = randInt(1, 7);
+    const y = randInt(1, 7);
+    if (x === y) continue;
+    const pts = [[x, y], [y, x], [x, randInt(1, 7)], [randInt(1, 7), y]];
+    const keys = new Set(pts.map((p) => p.join(",")));
+    if (keys.size !== 4) continue;
+    const letters = shuffle(["A", "B", "C", "D"]);
+    const marks = pts.map((p, i) => ({ x: p[0], y: p[1], label: letters[i], color: i === 0 ? "#ef4444" : "#3b82f6" }));
+    return {
+      kind: "inline",
+      svg: cartesianSvg(0, 8, marks),
+      text: `Which point is at (${x}, ${y})?`,
+      wordy: true,
+      input: "mcq",
+      options: mcqOptions(letters[0], letters.slice(1)),
+      answerLabel: letters[0],
+      parSec: 15,
+    };
+  }
+  return readPointGen();
+}
+
+function fourQuadGen() {
+  const quad = randInt(1, 4);
+  const x = randInt(1, 3) * (quad === 2 || quad === 3 ? -1 : 1);
+  const y = randInt(1, 3) * (quad === 3 || quad === 4 ? -1 : 1);
+  const correct = `(${x}, ${y})`;
+  const distractors = [`(${y}, ${x})`, `(${-x}, ${y})`, `(${x}, ${-y})`].filter((s) => s !== correct);
+  return {
+    kind: "inline",
+    svg: cartesianSvg(-4, 4, [{ x, y }]),
+    text: "What are the coordinates of the point?",
+    wordy: true,
+    input: "mcq",
+    options: mcqOptions(correct, [...new Set(distractors)].slice(0, 3)),
+    answerLabel: correct,
+    parSec: 18,
+  };
+}
+
+function movePointGen() {
+  for (let attempt = 0; attempt < 100; attempt++) {
+    const x = randInt(1, 6);
+    const y = randInt(1, 6);
+    const dx = randInt(-3, 3);
+    const dy = randInt(-3, 3);
+    if (dx === 0 && dy === 0) continue;
+    const nx = x + dx, ny = y + dy;
+    if (nx < 0 || nx > 8 || ny < 0 || ny > 8) continue;
+    const across = dx === 0 ? "" : `${Math.abs(dx)} ${dx > 0 ? "right" : "left"}`;
+    const up = dy === 0 ? "" : `${Math.abs(dy)} ${dy > 0 ? "up" : "down"}`;
+    const move = [across, up].filter(Boolean).join(" and ");
+    return {
+      kind: "inline",
+      svg: cartesianSvg(0, 8, [{ x, y }]),
+      text: `Start at the point shown. Move ${move}. What are the new coordinates?`,
+      wordy: true,
+      input: "pair",
+      labels: ["x", "y"],
+      answer: nx,
+      answer2: ny,
+      answerText: `(${nx}, ${ny})`,
+      parSec: 22,
+    };
+  }
+  return readPointGen();
+}
+
+/* ==========================================================================
+   Data & Graphs
+   ========================================================================== */
+
+const GRAPH_THEMES = [
+  { title: "Favourite Fruit", cats: ["Apple", "Banana", "Orange", "Grapes"], noun: "students" },
+  { title: "Class Pets", cats: ["Dog", "Cat", "Fish", "Bird"], noun: "students" },
+  { title: "Favourite Sport", cats: ["Soccer", "Netball", "Tennis", "Cricket"], noun: "students" },
+];
+
+const BAR_COLORS = ["#6366f1", "#f59e0b", "#10b981", "#ef4444"];
+
+function columnGraphSvg(theme, values) {
+  const W = 300, H = 235;
+  const x0 = 40, y0 = 195, plotH = 165;
+  const maxV = 10;
+  let inner = txt(W / 2 + 10, 16, theme.title, 13);
+  for (let v = 0; v <= maxV; v += 2) {
+    const y = y0 - (v / maxV) * plotH;
+    inner += `<line x1="${x0}" y1="${y}" x2="${W - 10}" y2="${y}" stroke="#d5d9f0" stroke-width="1"/>`;
+    inner += txt(x0 - 8, y + 4, String(v), 10, SOFT, "end");
+  }
+  const bw = 38, gap = (W - 10 - x0 - bw * 4) / 5;
+  values.forEach((v, i) => {
+    const x = x0 + gap + i * (bw + gap);
+    const h = (v / maxV) * plotH;
+    inner += `<rect x="${x.toFixed(1)}" y="${(y0 - h).toFixed(1)}" width="${bw}" height="${h.toFixed(1)}" fill="${BAR_COLORS[i]}" stroke="${INK}" stroke-width="1.5" rx="3"/>`;
+    inner += txt(x + bw / 2, y0 + 15, theme.cats[i], 10.5);
+  });
+  inner += `<line x1="${x0}" y1="${y0}" x2="${W - 10}" y2="${y0}" stroke="${INK}" stroke-width="2"/>`;
+  inner += `<line x1="${x0}" y1="${y0}" x2="${x0}" y2="${y0 - plotH - 5}" stroke="${INK}" stroke-width="2"/>`;
+  return svgEl(W, H, inner);
+}
+
+function makeColumnData() {
+  const theme = pick(GRAPH_THEMES);
+  for (let attempt = 0; attempt < 100; attempt++) {
+    const values = theme.cats.map(() => randInt(1, 10));
+    if (new Set(values).size === values.length) return { theme, values };
+  }
+  return { theme, values: [2, 4, 6, 8] };
+}
+
+function columnReadGen() {
+  const { theme, values } = makeColumnData();
+  const i = randInt(0, values.length - 1);
+  return {
+    kind: "inline",
+    svg: columnGraphSvg(theme, values),
+    text: `How many ${theme.noun} chose ${theme.cats[i]}?`,
+    wordy: true,
+    answer: values[i],
+    parSec: 15,
+  };
+}
+
+function columnCompareGen() {
+  const { theme, values } = makeColumnData();
+  const most = Math.random() < 0.5;
+  const target = most ? Math.max(...values) : Math.min(...values);
+  const i = values.indexOf(target);
+  return {
+    kind: "inline",
+    svg: columnGraphSvg(theme, values),
+    text: `Which was the ${most ? "most" : "least"} popular?`,
+    wordy: true,
+    input: "mcq",
+    options: mcqOptions(theme.cats[i], theme.cats.filter((_, j) => j !== i)),
+    answerLabel: theme.cats[i],
+    parSec: 15,
+  };
+}
+
+function columnDiffGen() {
+  const { theme, values } = makeColumnData();
+  if (Math.random() < 0.5) {
+    let a = randInt(0, 3), b = randInt(0, 3);
+    if (a === b) b = (b + 1) % 4;
+    if (values[a] < values[b]) [a, b] = [b, a];
+    return {
+      kind: "inline",
+      svg: columnGraphSvg(theme, values),
+      text: `How many more ${theme.noun} chose ${theme.cats[a]} than ${theme.cats[b]}?`,
+      wordy: true,
+      answer: values[a] - values[b],
+      parSec: 20,
+    };
+  }
+  return {
+    kind: "inline",
+    svg: columnGraphSvg(theme, values),
+    text: `How many ${theme.noun} were surveyed in total?`,
+    wordy: true,
+    answer: values.reduce((a, b) => a + b, 0),
+    parSec: 25,
+  };
+}
+
+const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri"];
+const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+
+function lineGraphSvg(temps) {
+  const W = 300, H = 220;
+  const x0 = 42, y0 = 180, plotH = 145, plotW = W - 20 - x0;
+  let inner = txt(W / 2 + 10, 16, "Temperature this week", 13);
+  for (let v = 0; v <= 30; v += 5) {
+    const y = y0 - (v / 30) * plotH;
+    inner += `<line x1="${x0}" y1="${y}" x2="${W - 10}" y2="${y}" stroke="#d5d9f0" stroke-width="1"/>`;
+    inner += txt(x0 - 7, y + 4, String(v), 10, SOFT, "end");
+  }
+  const pts = temps.map((t, i) => [x0 + 18 + (i * (plotW - 30)) / 4, y0 - (t / 30) * plotH]);
+  inner += `<polyline points="${pts.map((p) => p.map((c) => c.toFixed(1)).join(",")).join(" ")}" fill="none" stroke="#6366f1" stroke-width="2.5"/>`;
+  pts.forEach((p, i) => {
+    inner += `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="4.5" fill="#6366f1" stroke="${INK}" stroke-width="1.5"/>`;
+    inner += txt(p[0], y0 + 16, DAYS[i], 10.5);
+  });
+  inner += `<line x1="${x0}" y1="${y0}" x2="${W - 10}" y2="${y0}" stroke="${INK}" stroke-width="2"/>`;
+  inner += `<line x1="${x0}" y1="${y0}" x2="${x0}" y2="${y0 - plotH - 5}" stroke="${INK}" stroke-width="2"/>`;
+  inner += txt(14, 100, "°C", 11, SOFT);
+  return svgEl(W, H, inner);
+}
+
+function makeTemps() {
+  for (let attempt = 0; attempt < 100; attempt++) {
+    const temps = DAYS.map(() => randInt(2, 6) * 5);
+    if (new Set(temps).size >= 4) return temps;
+  }
+  return [10, 15, 25, 20, 30];
+}
+
+function lineReadGen() {
+  const temps = makeTemps();
+  const i = randInt(0, 4);
+  return {
+    kind: "inline",
+    svg: lineGraphSvg(temps),
+    text: `What was the temperature on ${DAY_NAMES[i]}?`,
+    wordy: true,
+    unit: "°C",
+    answer: temps[i],
+    parSec: 15,
+  };
+}
+
+function lineDiffGen() {
+  const temps = makeTemps();
+  for (let attempt = 0; attempt < 100; attempt++) {
+    let a = randInt(0, 4), b = randInt(0, 4);
+    if (temps[a] <= temps[b]) continue;
+    return {
+      kind: "inline",
+      svg: lineGraphSvg(temps),
+      text: `How much warmer was it on ${DAY_NAMES[a]} than on ${DAY_NAMES[b]}?`,
+      wordy: true,
+      unit: "°C",
+      answer: temps[a] - temps[b],
+      parSec: 20,
+    };
+  }
+  return lineReadGen();
+}
+
+function pictureGraphSvg(names, counts, per) {
+  const W = 300;
+  const rowH = 34;
+  const H = 46 + names.length * rowH;
+  let inner = txt(W / 2, 16, "Books read this month", 13);
+  names.forEach((name, i) => {
+    const y = 40 + i * rowH;
+    inner += txt(12, y + 6, name, 12, INK, "start");
+    for (let k = 0; k < counts[i] / per; k++) {
+      inner += `<circle cx="${78 + k * 26}" cy="${y}" r="10" fill="#6366f1" stroke="${INK}" stroke-width="1.5"/>`;
+    }
+  });
+  inner += txt(12, H - 8, `Key: each circle = ${per} book${per > 1 ? "s" : ""}`, 11, SOFT, "start");
+  return svgEl(W, H, inner);
+}
+
+function pictureReadGen() {
+  const names = ["Sam", "Mia", "Leo", "Zoe"];
+  const per = pick([1, 2]);
+  const counts = names.map(() => randInt(1, 7) * per);
+  const i = randInt(0, 3);
+  return {
+    kind: "inline",
+    svg: pictureGraphSvg(names, counts, per),
+    text: `How many books did ${names[i]} read?`,
+    wordy: true,
+    answer: counts[i],
+    parSec: 15,
+  };
+}
+
+/* ==========================================================================
+   Time
+   ========================================================================== */
+
+function fmtTime(h, m) {
+  return `${h}:${String(m).padStart(2, "0")}`;
+}
+
+function clockSvg(h, m) {
+  const cx = 105, cy = 105, r = 92;
+  let inner = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="#fff" stroke="${INK}" stroke-width="3.5"/>`;
+  for (let i = 0; i < 60; i++) {
+    const a = (i * 6 * Math.PI) / 180;
+    const big = i % 5 === 0;
+    const r1 = big ? r - 10 : r - 5;
+    inner += `<line x1="${(cx + r1 * Math.sin(a)).toFixed(1)}" y1="${(cy - r1 * Math.cos(a)).toFixed(1)}" x2="${(cx + (r - 2) * Math.sin(a)).toFixed(1)}" y2="${(cy - (r - 2) * Math.cos(a)).toFixed(1)}" stroke="${INK}" stroke-width="${big ? 2.5 : 1}"/>`;
+  }
+  for (let n = 1; n <= 12; n++) {
+    const a = (n * 30 * Math.PI) / 180;
+    inner += txt(cx + (r - 24) * Math.sin(a), cy - (r - 24) * Math.cos(a) + 5, String(n), 15);
+  }
+  const ha = (((h % 12) + m / 60) * 30 * Math.PI) / 180;
+  const ma = (m * 6 * Math.PI) / 180;
+  inner += `<line x1="${cx}" y1="${cy}" x2="${(cx + 44 * Math.sin(ha)).toFixed(1)}" y2="${(cy - 44 * Math.cos(ha)).toFixed(1)}" stroke="${INK}" stroke-width="6" stroke-linecap="round"/>`;
+  inner += `<line x1="${cx}" y1="${cy}" x2="${(cx + 68 * Math.sin(ma)).toFixed(1)}" y2="${(cy - 68 * Math.cos(ma)).toFixed(1)}" stroke="${FILL_DARK}" stroke-width="3.5" stroke-linecap="round"/>`;
+  inner += `<circle cx="${cx}" cy="${cy}" r="5" fill="${INK}"/>`;
+  return svgEl(210, 210, inner);
+}
+
+function readClockGen(mode) {
+  return () => {
+    const h = randInt(1, 12);
+    const m = mode === "quarters" ? pick([0, 15, 30, 45]) : mode === "fives" ? randInt(0, 11) * 5 : randInt(0, 59);
+    return {
+      kind: "inline",
+      svg: clockSvg(h, m),
+      text: "What time does this clock show?",
+      wordy: true,
+      input: "pair",
+      labels: ["h", "min"],
+      answer: h,
+      answer2: m,
+      answerText: fmtTime(h, m),
+      parSec: mode === "quarters" ? 12 : 18,
+    };
+  };
+}
+
+function to24Gen() {
+  const h12 = randInt(1, 11);
+  const m = randInt(0, 11) * 5;
+  const pm = Math.random() < 0.6;
+  const h24 = pm ? h12 + 12 : h12;
+  return {
+    kind: "inline",
+    text: `Write ${fmtTime(h12, m)} ${pm ? "pm" : "am"} in 24-hour time`,
+    wordy: true,
+    input: "pair",
+    labels: ["h", "min"],
+    answer: h24,
+    answer2: m,
+    answerText: `${String(h24).padStart(2, "0")}:${String(m).padStart(2, "0")}`,
+    parSec: 15,
+  };
+}
+
+function from24Gen() {
+  const h12 = randInt(1, 11);
+  const m = randInt(0, 11) * 5;
+  const pm = Math.random() < 0.6;
+  const h24 = pm ? h12 + 12 : h12;
+  const correct = `${fmtTime(h12, m)} ${pm ? "pm" : "am"}`;
+  const distractors = [
+    `${fmtTime(h12, m)} ${pm ? "am" : "pm"}`,
+    `${fmtTime(h12 === 11 ? 1 : h12 + 1, m)} ${pm ? "pm" : "am"}`,
+    `${fmtTime(h12 === 1 ? 11 : h12 - 1, m)} ${pm ? "pm" : "am"}`,
+  ];
+  return {
+    kind: "inline",
+    text: `What is ${String(h24).padStart(2, "0")}:${String(m).padStart(2, "0")} in 12-hour time?`,
+    wordy: true,
+    input: "mcq",
+    options: mcqOptions(correct, distractors),
+    answerLabel: correct,
+    parSec: 15,
+  };
+}
+
+const ELAPSED_EVENTS = [
+  ["A movie starts at", "and ends at", "How long is the movie?"],
+  ["A soccer game starts at", "and finishes at", "How long is the game?"],
+  ["A bus leaves at", "and arrives at", "How long is the trip?"],
+  ["A cake goes in the oven at", "and comes out at", "How long does it bake?"],
+];
+
+function elapsedGen(hard) {
+  return () => {
+    for (let attempt = 0; attempt < 200; attempt++) {
+      const h1 = randInt(1, 8);
+      const m1 = hard ? randInt(0, 11) * 5 : pick([0, 30]);
+      const dur = hard ? randInt(4, 40) * 5 : pick([30, 60, 90, 120, 150, 180]);
+      const total = h1 * 60 + m1 + dur;
+      const h2 = Math.floor(total / 60);
+      const m2 = total % 60;
+      if (h2 > 11) continue;
+      const [t1, t2, t3] = pick(ELAPSED_EVENTS);
+      return {
+        kind: "inline",
+        text: `${t1} ${fmtTime(h1, m1)} pm ${t2} ${fmtTime(h2, m2)} pm. ${t3}`,
+        wordy: true,
+        input: "pair",
+        labels: ["h", "min"],
+        answer: Math.floor(dur / 60),
+        answer2: dur % 60,
+        answerText: `${Math.floor(dur / 60)} h ${dur % 60} min`,
+        parSec: hard ? 30 : 20,
+      };
+    }
+    return {
+      kind: "inline", text: "A movie starts at 2:00 pm and ends at 4:00 pm. How long is the movie?",
+      wordy: true, input: "pair", labels: ["h", "min"], answer: 2, answer2: 0, answerText: "2 h 0 min", parSec: 20,
+    };
+  };
+}
+
+const TT_STOPS = ["School", "Library", "Pool", "Station"];
+
+function makeTimetable() {
+  const starts = [9 * 60, 9 * 60 + randInt(4, 8) * 5, 9 * 60 + randInt(12, 18) * 5];
+  const legs = [randInt(2, 5) * 5, randInt(2, 5) * 5, randInt(2, 5) * 5];
+  return starts.map((s) => {
+    let t = s;
+    return TT_STOPS.map((_, i) => {
+      if (i > 0) t += legs[i - 1];
+      return t;
+    });
+  });
+}
+
+function ttTime(mins) {
+  return fmtTime(Math.floor(mins / 60), mins % 60);
+}
+
+function timetableHtml(times) {
+  let html = `<table class="ttable"><tr><th></th>${times.map((_, i) => `<th>Bus ${"ABC"[i]}</th>`).join("")}</tr>`;
+  TT_STOPS.forEach((stop, r) => {
+    html += `<tr><th>${stop}</th>${times.map((col) => `<td>${ttTime(col[r])}</td>`).join("")}</tr>`;
+  });
+  return html + "</table>";
+}
+
+function timetableReadGen() {
+  const times = makeTimetable();
+  const bus = randInt(0, 2);
+  const stop = randInt(1, 3);
+  const correct = ttTime(times[bus][stop]);
+  const others = [];
+  for (let b = 0; b < 3; b++) {
+    for (let s = 0; s < 4; s++) {
+      const t = ttTime(times[b][s]);
+      if (t !== correct && !others.includes(t)) others.push(t);
+    }
+  }
+  return {
+    kind: "inline",
+    textHtml: `${timetableHtml(times)}<div class="tt-q">What time does Bus ${"ABC"[bus]} arrive at the ${TT_STOPS[stop]}?</div>`,
+    text: `What time does Bus ${"ABC"[bus]} arrive at the ${TT_STOPS[stop]}?`,
+    wordy: true,
+    input: "mcq",
+    options: mcqOptions(correct, shuffle(others).slice(0, 3)),
+    answerLabel: correct,
+    parSec: 20,
+  };
+}
+
+function timetableJourneyGen() {
+  const times = makeTimetable();
+  const bus = randInt(0, 2);
+  const from = randInt(0, 2);
+  const to = randInt(from + 1, 3);
+  return {
+    kind: "inline",
+    textHtml: `${timetableHtml(times)}<div class="tt-q">How many minutes does Bus ${"ABC"[bus]} take to travel from the ${TT_STOPS[from]} to the ${TT_STOPS[to]}?</div>`,
+    text: `How many minutes does Bus ${"ABC"[bus]} take from the ${TT_STOPS[from]} to the ${TT_STOPS[to]}?`,
+    wordy: true,
+    unit: "min",
+    answer: times[bus][to] - times[bus][from],
+    parSec: 25,
+  };
+}
+
+/* ==========================================================================
+   Patterns & Order of Operations
+   ========================================================================== */
+
+function patternGen(mode) {
+  return () => {
+    let terms;
+    if (mode === "addsub") {
+      const step = randInt(2, 9) * (Math.random() < 0.35 ? -1 : 1);
+      let start = step > 0 ? randInt(1, 30) : randInt(40, 80);
+      terms = [start, start + step, start + 2 * step, start + 3 * step, start + 4 * step];
+    } else if (mode === "mult") {
+      if (Math.random() < 0.5) {
+        const start = randInt(2, 6);
+        const f = pick([2, 3]);
+        terms = [start, start * f, start * f * f, start * f ** 3];
+        if (f === 2) terms.push(start * 16);
+      } else {
+        const start = pick([64, 80, 96, 128, 160]);
+        terms = [start, start / 2, start / 4, start / 8];
+      }
+    } else {
+      // decimal steps
+      const step = randInt(2, 9);
+      const start = randInt(5, 30);
+      terms = [0, 1, 2, 3, 4].map((i) => (start + i * step) / 10);
+    }
+    const answer = terms[terms.length - 1];
+    const shown = terms.slice(0, -1);
+    return {
+      kind: "inline",
+      text: `${shown.join(",  ")},  ?`,
+      answer,
+      decimals: mode === "decimal",
+      parSec: 18,
+    };
+  };
+}
+
+function orderOpsGen(mode) {
+  return () => {
+    for (let attempt = 0; attempt < 200; attempt++) {
+      const a = randInt(2, 12), b = randInt(2, 9), c = randInt(2, 9);
+      if (mode === "basic") {
+        const form = randInt(0, 2);
+        if (form === 0) return { kind: "inline", text: `${a} + ${b} × ${c} =`, answer: a + b * c, parSec: 15 };
+        if (form === 1) {
+          if (a - b * c <= 0) continue;
+          return { kind: "inline", text: `${a} − ${b} × ${c} =`, answer: a - b * c, parSec: 15 };
+        }
+        return { kind: "inline", text: `${a} × ${b} + ${c} =`, answer: a * b + c, parSec: 15 };
+      }
+      if (mode === "brackets") {
+        const form = randInt(0, 2);
+        if (form === 0) return { kind: "inline", text: `(${a} + ${b}) × ${c} =`, answer: (a + b) * c, parSec: 18 };
+        if (form === 1) {
+          if (a <= b) continue;
+          return { kind: "inline", text: `(${a} − ${b}) × ${c} =`, answer: (a - b) * c, parSec: 18 };
+        }
+        return { kind: "inline", text: `${a} × (${b} + ${c}) =`, answer: a * (b + c), parSec: 18 };
+      }
+      // mixed with division
+      const form = randInt(0, 2);
+      if (form === 0) {
+        const q = randInt(2, 9);
+        return { kind: "inline", text: `${a} + ${b * q} ÷ ${b} =`, answer: a + q, parSec: 22 };
+      }
+      if (form === 1) {
+        if ((a + b) % c !== 0) continue;
+        return { kind: "inline", text: `(${a} + ${b}) ÷ ${c} =`, answer: (a + b) / c, parSec: 22 };
+      }
+      const d = randInt(2, 9);
+      if (a * b <= c * d) continue;
+      return { kind: "inline", text: `${a} × ${b} − ${c} × ${d} =`, answer: a * b - c * d, parSec: 25 };
+    }
+    return { kind: "inline", text: "2 + 3 × 4 =", answer: 14, parSec: 15 };
+  };
+}
+
+function missingNumberGen(hard) {
+  return () => {
+    const forms = [];
+    if (!hard) {
+      const a = randInt(5, 60), b = randInt(2, 40);
+      forms.push({ text: `${a} + ? = ${a + b}`, answer: b });
+      forms.push({ text: `? + ${a} = ${a + b}`, answer: b });
+      forms.push({ text: `${a + b} − ? = ${a}`, answer: b });
+      forms.push({ text: `? − ${a} = ${b}`, answer: a + b });
+    } else {
+      const a = randInt(2, 12), q = randInt(2, 12);
+      forms.push({ text: `${a} × ? = ${a * q}`, answer: q });
+      forms.push({ text: `? × ${a} = ${a * q}`, answer: q });
+      forms.push({ text: `${a * q} ÷ ? = ${a}`, answer: q });
+      forms.push({ text: `? ÷ ${a} = ${q}`, answer: a * q });
+    }
+    const f = pick(forms);
+    return { kind: "inline", text: f.text, answer: f.answer, parSec: 15 };
+  };
+}
+
+/* ==========================================================================
    Topic tree
    ========================================================================== */
 
@@ -2307,6 +3018,158 @@ const TOPICS = {
         name: "Worded Probability",
         desc: "Cards, jelly beans and letters",
         levels: [{ id: "l1", name: "Worded problems", gen: probWordedGen }],
+      },
+    },
+  },
+  percentages: {
+    name: "Percentages",
+    icon: "%",
+    color: "linear-gradient(135deg, #bef264, #4d7c0f)",
+    subtopics: {
+      convert: {
+        name: "Percentages ↔ Fractions & Decimals",
+        desc: "Three ways to write the same value",
+        levels: [
+          { id: "l1", name: "Percentage → fraction", gen: pctToFracGen },
+          { id: "l2", name: "Percentage → decimal", gen: pctToDecGen },
+          { id: "l3", name: "Fraction or decimal → percentage", gen: toPctGen },
+        ],
+      },
+      ofnumber: {
+        name: "Percentage of a Number",
+        desc: "e.g. 25% of 80",
+        levels: [
+          { id: "l1", name: "10%, 25%, 50%", gen: pctOfNumberGen([10, 25, 50]) },
+          { id: "l2", name: "5%, 20%, 30%, 75%", gen: pctOfNumberGen([5, 20, 30, 75]) },
+          { id: "l3", name: "Any multiple of 5", gen: pctOfNumberGen([5, 15, 35, 45, 55, 65, 85, 95, 40, 60, 70, 80, 90]) },
+        ],
+      },
+      worded: {
+        name: "Worded Percentages",
+        desc: "Sales, surveys and test scores",
+        levels: [
+          { id: "l1", name: "Friendly percentages", gen: pctWordGen(false) },
+          { id: "l2", name: "Trickier percentages", gen: pctWordGen(true) },
+        ],
+      },
+    },
+  },
+  coordinates: {
+    name: "Coordinates",
+    icon: "📍",
+    color: "linear-gradient(135deg, #67e8f9, #0e7490)",
+    subtopics: {
+      read: {
+        name: "The Cartesian Plane",
+        desc: "Read and find points on a grid",
+        levels: [
+          { id: "l1", name: "Read the coordinates", gen: readPointGen },
+          { id: "l2", name: "Find the point", gen: whichPointGen },
+          { id: "l3", name: "All four quadrants", gen: fourQuadGen },
+          { id: "l4", name: "Move around the grid", gen: movePointGen },
+        ],
+      },
+    },
+  },
+  data: {
+    name: "Data & Graphs",
+    icon: "📊",
+    color: "linear-gradient(135deg, #fdba74, #c2410c)",
+    subtopics: {
+      column: {
+        name: "Column Graphs",
+        desc: "Read and compare bar heights",
+        levels: [
+          { id: "l1", name: "Read a value", gen: columnReadGen },
+          { id: "l2", name: "Most & least popular", gen: columnCompareGen },
+          { id: "l3", name: "Differences & totals", gen: columnDiffGen },
+        ],
+      },
+      line: {
+        name: "Line Graphs",
+        desc: "Values that change over time",
+        levels: [
+          { id: "l1", name: "Read a value", gen: lineReadGen },
+          { id: "l2", name: "Compare two days", gen: lineDiffGen },
+        ],
+      },
+      picture: {
+        name: "Picture Graphs",
+        desc: "Watch the key — one symbol can mean two!",
+        levels: [{ id: "l1", name: "Read a picture graph", gen: pictureReadGen }],
+      },
+    },
+  },
+  time: {
+    name: "Time",
+    icon: "⏰",
+    color: "linear-gradient(135deg, #c4b5fd, #5b21b6)",
+    subtopics: {
+      clock: {
+        name: "Read the Clock",
+        desc: "Tell the time from an analog clock",
+        levels: [
+          { id: "l1", name: "Quarter hours", gen: readClockGen("quarters") },
+          { id: "l2", name: "Five-minute times", gen: readClockGen("fives") },
+          { id: "l3", name: "To the minute", gen: readClockGen("minutes") },
+        ],
+      },
+      t24: {
+        name: "24-Hour Time",
+        desc: "Convert between 12- and 24-hour time",
+        levels: [
+          { id: "l1", name: "12-hour → 24-hour", gen: to24Gen },
+          { id: "l2", name: "24-hour → 12-hour", gen: from24Gen },
+        ],
+      },
+      elapsed: {
+        name: "Elapsed Time",
+        desc: "How long between two times?",
+        levels: [
+          { id: "l1", name: "Whole and half hours", gen: elapsedGen(false) },
+          { id: "l2", name: "Any 5-minute times", gen: elapsedGen(true) },
+        ],
+      },
+      timetable: {
+        name: "Timetables",
+        desc: "Read a bus timetable",
+        levels: [
+          { id: "l1", name: "Read the timetable", gen: timetableReadGen },
+          { id: "l2", name: "How long is the trip?", gen: timetableJourneyGen },
+        ],
+      },
+    },
+  },
+  patterns: {
+    name: "Patterns & Order of Operations",
+    icon: "🔢",
+    color: "linear-gradient(135deg, #5eead4, #0f766e)",
+    subtopics: {
+      patterns: {
+        name: "Number Patterns",
+        desc: "What comes next?",
+        levels: [
+          { id: "l1", name: "Adding & subtracting patterns", gen: patternGen("addsub") },
+          { id: "l2", name: "Doubling & halving patterns", gen: patternGen("mult") },
+          { id: "l3", name: "Decimal patterns", gen: patternGen("decimal") },
+        ],
+      },
+      orderops: {
+        name: "Order of Operations",
+        desc: "Multiply and divide before add and subtract",
+        levels: [
+          { id: "l1", name: "+ and × together", gen: orderOpsGen("basic") },
+          { id: "l2", name: "With brackets", gen: orderOpsGen("brackets") },
+          { id: "l3", name: "With division too", gen: orderOpsGen("mixed") },
+        ],
+      },
+      missing: {
+        name: "Missing Numbers",
+        desc: "Find the mystery number",
+        levels: [
+          { id: "l1", name: "Addition & subtraction", gen: missingNumberGen(false) },
+          { id: "l2", name: "Multiplication & division", gen: missingNumberGen(true) },
+        ],
       },
     },
   },
