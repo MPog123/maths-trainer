@@ -1,9 +1,10 @@
-const CACHE_NAME = "y6maths-v3";
+const CACHE_NAME = "y6maths-v4";
 
 const ASSETS = [
   "./",
   "./index.html",
   "./style.css",
+  "./questions.js",
   "./app.js",
   "./manifest.webmanifest",
   "./icon-192.png",

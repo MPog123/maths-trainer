@@ -59,6 +59,9 @@
 
     <div class="quiz-body">
       <div class="question-area">
+        <!-- diagram (SVG) for visual questions -->
+        <div class="question-svg" id="question-svg"></div>
+
         <!-- inline question, e.g. 47 + 28 = -->
         <div class="question-inline" id="question-inline"></div>
 
@@ -78,6 +81,16 @@
         <div class="answer-row" id="answer-row">
           <div class="answer-box" id="answer-box">&nbsp;</div>
           <div class="answer-box answer-rem" id="answer-box-r"><span class="r-tag">R</span>&nbsp;</div>
+        </div>
+
+        <!-- fraction / mixed-number answer -->
+        <div class="answer-frac" id="answer-frac">
+          <div class="answer-box frac-box" id="frac-whole">&nbsp;</div>
+          <div class="frac-stack">
+            <div class="answer-box frac-box" id="frac-num">&nbsp;</div>
+            <div class="frac-bar"></div>
+            <div class="answer-box frac-box" id="frac-den">&nbsp;</div>
+          </div>
         </div>
 
         <div class="feedback" id="feedback"></div>
@@ -106,6 +119,9 @@
         <button class="key key-del" data-key="del">&#9003;</button>
         <button class="key key-go key-wide" data-key="go">&#10003;</button>
       </div>
+
+      <!-- multiple choice options (replaces the numpad) -->
+      <div class="mcq-grid" id="mcq-grid"></div>
     </div>
   </div>
 
@@ -140,6 +156,7 @@
     </div>
   </div>
 
+  <script src="questions.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

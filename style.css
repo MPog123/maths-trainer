@@ -112,6 +112,8 @@ body {
   font-weight: 800;
 }
 
+.topic-icon-small { font-size: 1.4rem; }
+
 .topic-card .card-title {
   font-size: 1.3rem;
   font-weight: 700;
@@ -259,6 +261,39 @@ body {
   padding: 0 6px;
 }
 
+/* diagram area */
+.question-svg {
+  display: none;
+  margin: 0 auto 6px;
+}
+
+.question-svg.active { display: block; }
+
+.question-svg .qsvg {
+  display: block;
+  margin: 0 auto;
+  max-width: min(62vw, 250px);
+  max-height: 26vh;
+  height: auto;
+}
+
+/* stacked fraction inside question text */
+.tfrac {
+  display: inline-flex;
+  flex-direction: column;
+  vertical-align: middle;
+  margin: 0 3px;
+  font-size: 0.72em;
+  line-height: 1.15;
+}
+
+.tfrac .tf-n {
+  border-bottom: 2.5px solid currentColor;
+  padding: 0 6px 1px;
+}
+
+.tfrac .tf-d { padding: 1px 6px 0; }
+
 .question-longdiv {
   display: none;
   width: fit-content;
@@ -358,6 +393,39 @@ body {
   margin-left: 8px;
 }
 
+/* fraction / mixed-number answer input */
+.answer-frac {
+  display: none;
+  justify-content: center;
+  align-items: center;
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.answer-frac.active { display: flex; }
+
+.frac-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.frac-bar {
+  width: 100%;
+  height: 4px;
+  background: var(--ink);
+  border-radius: 2px;
+}
+
+.answer-box.frac-box {
+  min-width: 90px;
+  padding: 4px 14px;
+  font-size: clamp(1.2rem, 5vw, 1.6rem);
+}
+
+.frac-box.hidden { display: none; }
+
 .feedback {
   min-height: 1.7em;
   margin-top: 10px;
@@ -456,6 +524,54 @@ body {
 }
 
 .key-wide { grid-column: 1 / -1; }
+
+.numpad.hidden { display: none; }
+
+/* multiple choice */
+.mcq-grid {
+  display: none;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin-top: auto;
+  padding-top: 10px;
+}
+
+.mcq-grid.active { display: grid; }
+
+.mcq-btn {
+  border: 3px solid transparent;
+  background: var(--card);
+  box-shadow: var(--shadow);
+  border-radius: 16px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  font-family: inherit;
+  color: var(--ink);
+  padding: 16px 8px;
+  min-height: 58px;
+  cursor: pointer;
+  transition: transform 0.06s ease;
+}
+
+.mcq-btn:active { transform: scale(0.96); }
+
+.mcq-btn.mcq-correct {
+  border-color: var(--green);
+  background: var(--green-soft);
+}
+
+.mcq-btn.mcq-wrong {
+  border-color: var(--red);
+  background: var(--red-soft);
+}
+
+.mcq-btn .mcq-svg svg {
+  max-width: 100%;
+  max-height: 110px;
+  height: auto;
+  display: block;
+  margin: 0 auto;
+}
 
 /* ---------- Results ---------- */
 

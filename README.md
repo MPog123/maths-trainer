@@ -10,14 +10,27 @@ Question types mirror the printed worksheets (`addition.tex`, `subtraction.tex`,
 | Subtraction | Written, Mental, Mental: 3+ Numbers |
 | Multiplication | Written, Worded, Mental, Multiplying Three Numbers |
 | Division | Division Facts, Long Division, Long Division with Remainders, Worded, Regular Practice |
-| Measurement Conversion | m↔cm, kg↔g, cm↔mm, L↔mL, km↔m |
+| Measurement Conversion | m↔cm, kg↔g, cm↔mm, L↔mL, km↔m, Worded Conversions |
+| Fractions | Shaded diagrams, Equivalent, Simplifying, Add & Subtract, Decimals→Fractions, Fraction of a Number, Improper & Mixed |
+| Decimals | Place Value, Add & Subtract, ×/÷ by 10/100/1000, Multiplying, Fractions→Decimals |
+| 2D Shapes | Name the Shape, Perimeter, Area, Types of Angles, Missing Angles, Classify the Triangle |
+| 3D Shapes | Name the Shape, Count the Cubes, Faces/Edges/Vertices, Volume, Match the Nets, Surface Area |
+| Chance | Chance Words, Probability as Fractions, as Decimals & %, Worded Probability |
 
 Questions are generated with the same digit-length patterns as the worksheets.
 Subtraction questions are always non-negative, division questions are constructed
 so answers come out whole (with guaranteed remainders in the remainder modes),
 and conversion questions keep decimal values to at most 2 decimal places.
-Remainder questions use a second "R" input box; conversion answers that need a
-decimal point enable the "." key on the number pad.
+
+Answer input adapts to the question: remainder questions use a second "R" box,
+fraction answers use stacked numerator/denominator boxes (with an extra whole-number
+box for mixed numbers), decimal answers enable the "." key, and naming/classifying
+questions use multiple choice. Shape, angle, cube, net, spinner, jar and dice
+questions include generated SVG diagrams. Fraction answers accept any equivalent
+fraction except in "Simplify" questions, which require simplest form.
+
+Code layout: `questions.js` holds all generators and SVG helpers (no DOM usage,
+so it can be tested in Node directly); `app.js` is the UI and game flow.
 
 Each subtopic is split into **difficulty levels** that follow the worksheet
 progression (e.g. Mental Addition: 2-digit + 2-digit up to 4-digit + 3-digit),

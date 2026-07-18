@@ -1,462 +1,9 @@
 "use strict";
 
-/* ==========================================================================
-   Question model
-   Every difficulty level has a gen() that returns a question object:
-   {
-     kind:      "inline" | "written" | "longdiv",
-     text:      question text (inline only; wordy => longer sentence style),
-     wordy:     true for word problems (smaller font, left aligned),
-     numbers:   the stacked numbers (written only),
-     symbol:    operator symbol (written only),
-     divisor/dividend:  (longdiv only),
-     answer:    expected number (quotient for remainder questions),
-     remainder: expected remainder (remainder questions only),
-     unit:      unit label shown inside the answer box (conversions),
-     decimals:  true if the "." key is allowed / answer is decimal,
-     parSec:    par time in seconds for the speed bonus
-   }
-   Question parameters mirror the printed worksheets.
-   ========================================================================== */
+/* UI and game flow. Question generation lives in questions.js (TOPICS,
+   levelsOf, getLevel). */
 
 const QUESTIONS_PER_ROUND = 10;
-
-function randInt(lo, hi) {
-  return lo + Math.floor(Math.random() * (hi - lo + 1));
-}
-
-function randomWithDigits(d) {
-  if (d === 1) return randInt(1, 9);
-  return randInt(10 ** (d - 1), 10 ** d - 1);
-}
-
-function pick(arr) {
-  return arr[randInt(0, arr.length - 1)];
-}
-
-function totalDigits(numbers) {
-  return numbers.reduce((a, n) => a + String(n).length, 0);
-}
-
-/* ---------- Addition & subtraction (shapes = digit counts) ---------- */
-
-function arithGen(op, shapes, written) {
-  return () => {
-    for (let attempt = 0; attempt < 10000; attempt++) {
-      const shape = pick(shapes);
-      const numbers = shape.map(randomWithDigits);
-      let answer;
-      if (op === "+") {
-        answer = numbers.reduce((a, b) => a + b, 0);
-      } else {
-        const rest = numbers.slice(1).reduce((a, b) => a + b, 0);
-        if (numbers[0] < rest) continue;
-        answer = numbers[0] - rest;
-      }
-      const par = (written ? 10 : 5) + 4 * totalDigits(numbers);
-      if (written) {
-        return { kind: "written", numbers, symbol: op === "+" ? "+" : "−", answer, parSec: par };
-      }
-      return {
-        kind: "inline",
-        text: numbers.join(op === "+" ? " + " : " − ") + " =",
-        answer,
-        parSec: par,
-      };
-    }
-    return { kind: "inline", text: "99 − 11 =", answer: 88, parSec: 10 };
-  };
-}
-
-/* ---------- Multiplication ---------- */
-
-// 1-digit factors avoid 0 and 1 so questions are never trivial.
-function mulFactor(digits) {
-  return digits === 1 ? randInt(2, 9) : randomWithDigits(digits);
-}
-
-function mulWrittenGen(shapes) {
-  return () => {
-    const shape = pick(shapes);
-    const numbers = shape.map(mulFactor);
-    return {
-      kind: "written",
-      numbers,
-      symbol: "×",
-      answer: numbers.reduce((a, b) => a * b, 1),
-      parSec: 10 + 6 * totalDigits(numbers),
-    };
-  };
-}
-
-function mulMentalGen(bLo, bHi) {
-  return () => {
-    const a = randInt(2, 12);
-    const b = randInt(bLo, bHi);
-    return { kind: "inline", text: `${a} × ${b} =`, answer: a * b, parSec: 20 };
-  };
-}
-
-function mulTripleGen() {
-  const a = randInt(2, 9);
-  const b = randInt(2, 9);
-  const c = randInt(2, 12);
-  return { kind: "inline", text: `${a} × ${b} × ${c} =`, answer: a * b * c, parSec: 18 };
-}
-
-const MUL_WORD_TEMPLATES = [
-  (a, b) => `A box holds ${a} pencils. How many pencils are in ${b} boxes?`,
-  (a, b) => `There are ${a} students in each class. How many students are in ${b} classes?`,
-  (a, b) => `A packet has ${a} biscuits. How many biscuits are in ${b} packets?`,
-  (a, b) => `One table seats ${a} people. How many people can sit at ${b} tables?`,
-  (a, b) => `A bus has ${a} seats. How many seats are there on ${b} buses?`,
-  (a, b) => `A shelf holds ${a} books. How many books fit on ${b} shelves?`,
-  (a, b) => `A ticket costs $${a}. How much do ${b} tickets cost? ($)`,
-  (a, b) => `A garden has ${b} rows of flowers with ${a} flowers in each row. How many flowers are there?`,
-  (a, b) => `A carton holds ${a} eggs. How many eggs are in ${b} cartons?`,
-  (a, b) => `A swimmer swims ${a} metres each lap. How many metres do they swim in ${b} laps?`,
-  (a, b) => `A baker makes ${a} cupcakes each day. How many cupcakes are made in ${b} days?`,
-  (a, b) => `A train carriage has ${a} seats. How many seats are in ${b} carriages?`,
-];
-
-function mulWordGen(aRange, bRange) {
-  return () => {
-    const a = randInt(...aRange);
-    const b = randInt(...bRange);
-    return {
-      kind: "inline",
-      wordy: true,
-      text: pick(MUL_WORD_TEMPLATES)(a, b),
-      answer: a * b,
-      parSec: 25,
-    };
-  };
-}
-
-/* ---------- Division ---------- */
-
-function divFactsGen(dLo, dHi) {
-  return () => {
-    const d = randInt(dLo, dHi);
-    const q = randInt(2, 12);
-    return { kind: "inline", text: `${d * q} ÷ ${d} =`, answer: q, parSec: 8 };
-  };
-}
-
-// Construct a dividend with exactly `nDigits` digits that divides evenly (or
-// leaves a remainder when withRemainder is set).
-function makeDivision(dLo, dHi, nDigits, withRemainder) {
-  for (let attempt = 0; attempt < 1000; attempt++) {
-    const d = randInt(dLo, dHi);
-    const lo = 10 ** (nDigits - 1);
-    const hi = 10 ** nDigits - 1;
-    const qMin = Math.max(2, Math.ceil(lo / d));
-    const qMax = Math.floor(hi / d);
-    if (qMin > qMax) continue;
-    const q = randInt(qMin, qMax);
-    if (!withRemainder) {
-      return { d, q, r: 0, dividend: d * q };
-    }
-    const r = randInt(1, d - 1);
-    if (d * q + r > hi) continue;
-    return { d, q, r, dividend: d * q + r };
-  }
-  return { d: 4, q: 162, r: withRemainder ? 1 : 0, dividend: withRemainder ? 649 : 648 };
-}
-
-function longDivGen(dLo, dHi, nDigits, withRemainder) {
-  return () => {
-    const { d, q, r, dividend } = makeDivision(dLo, dHi, nDigits, withRemainder);
-    const question = {
-      kind: "longdiv",
-      divisor: d,
-      dividend,
-      answer: q,
-      parSec: 20 + 10 * nDigits + (d > 9 ? 15 : 0) + (withRemainder ? 8 : 0),
-    };
-    if (withRemainder) question.remainder = r;
-    return question;
-  };
-}
-
-function divMentalGen(dLo, dHi, parSec) {
-  return () => {
-    const { d, q, dividend } = makeDivision(dLo, dHi, 3, false);
-    return { kind: "inline", text: `${dividend} ÷ ${d} =`, answer: q, parSec };
-  };
-}
-
-const DIV_WORD_TEMPLATES = [
-  (D, d) => `${D} apples are shared equally among ${d} children. How many apples does each child get?`,
-  (D, d) => `${D} stickers are put equally into ${d} books. How many stickers go in each book?`,
-  (D, d) => `${D} cupcakes are packed equally into ${d} boxes. How many cupcakes are in each box?`,
-  (D, d) => `${D} chairs are arranged equally into ${d} rows. How many chairs are in each row?`,
-  (D, d) => `${D} marbles are packed equally into ${d} bags. How many marbles are in each bag?`,
-  (D, d) => `${D} pages are read over ${d} days, the same number each day. How many pages each day?`,
-];
-
-const DIV_WORD_REMAINDER_TEMPLATES = [
-  (D, d) => `${D} pencils are packed into boxes of ${d}. How many full boxes can be made, and how many pencils are left over?`,
-  (D, d) => `${D} students are put into teams of ${d}. How many full teams can be made, and how many students are left over?`,
-  (D, d) => `${D} cookies are packed into bags of ${d}. How many full bags can be made, and how many are left over?`,
-  (D, d) => `${D} books are placed on shelves that each hold ${d} books. How many full shelves are there, and how many books are left over?`,
-  (D, d) => `${D} oranges are packed into crates of ${d}. How many full crates are there, and how many oranges are left over?`,
-];
-
-function divWordGen(withRemainder) {
-  return () => {
-    const d = randInt(2, 12);
-    const q = randInt(4, 24);
-    const r = withRemainder ? randInt(1, d - 1) : 0;
-    const dividend = d * q + r;
-    const template = pick(withRemainder ? DIV_WORD_REMAINDER_TEMPLATES : DIV_WORD_TEMPLATES);
-    const question = {
-      kind: "inline",
-      wordy: true,
-      text: template(dividend, d),
-      answer: q,
-      parSec: withRemainder ? 35 : 25,
-    };
-    if (withRemainder) question.remainder = r;
-    return question;
-  };
-}
-
-/* ---------- Measurement conversions ---------- */
-
-// step keeps decimal values to at most 2 dp (e.g. 2250 g -> 2.25 kg).
-const FAMILIES = {
-  m_cm: { big: "m", small: "cm", factor: 100, step: 1, name: "Metres & Centimetres" },
-  kg_g: { big: "kg", small: "g", factor: 1000, step: 10, name: "Kilograms & Grams" },
-  cm_mm: { big: "cm", small: "mm", factor: 10, step: 1, name: "Centimetres & Millimetres" },
-  l_ml: { big: "L", small: "mL", factor: 1000, step: 10, name: "Litres & Millilitres" },
-  km_m: { big: "km", small: "m", factor: 1000, step: 10, name: "Kilometres & Metres" },
-};
-
-function convGen(family, mode) {
-  const { big, small, factor, step } = family;
-  return () => {
-    if (mode === "bigToSmallWhole") {
-      const n = randInt(1, 30);
-      return { kind: "inline", text: `${n} ${big} =`, unit: small, answer: n * factor, parSec: 10 };
-    }
-    if (mode === "smallToBigWhole") {
-      const n = randInt(1, 30);
-      return { kind: "inline", text: `${n * factor} ${small} =`, unit: big, answer: n, parSec: 10 };
-    }
-    // Decimal modes: build an exact integer amount of the small unit first,
-    // so the big-unit value always has at most 2 decimal places.
-    let s;
-    do {
-      s = step * randInt(1, Math.floor((30 * factor) / step));
-    } while (s % factor === 0);
-    const v = s / factor;
-    if (mode === "bigToSmallDecimal") {
-      return { kind: "inline", text: `${v} ${big} =`, unit: small, answer: s, parSec: 14 };
-    }
-    // smallToBigDecimal
-    return { kind: "inline", text: `${s} ${small} =`, unit: big, answer: v, decimals: true, parSec: 14 };
-  };
-}
-
-function convLevels(family) {
-  const { big, small } = family;
-  return [
-    { id: "l1", name: `${big} → ${small} (whole numbers)`, gen: convGen(family, "bigToSmallWhole") },
-    { id: "l2", name: `${small} → ${big} (whole numbers)`, gen: convGen(family, "smallToBigWhole") },
-    { id: "l3", name: `${big} → ${small} (decimals)`, gen: convGen(family, "bigToSmallDecimal") },
-    { id: "l4", name: `${small} → ${big} (decimal answers)`, gen: convGen(family, "smallToBigDecimal") },
-  ];
-}
-
-/* ==========================================================================
-   Topics, subtopics & difficulty levels (mirroring the worksheets)
-   ========================================================================== */
-
-function addSubLevels(op, written) {
-  if (written) {
-    return [
-      { id: "l1", name: `2-digit ${op} 2-digit`, gen: arithGen(op, [[2, 2]], true) },
-      { id: "l2", name: `3/4-digit ${op} 2-digit`, gen: arithGen(op, [[3, 2], [4, 2]], true) },
-      { id: "l3", name: `3/4-digit ${op} 3-digit`, gen: arithGen(op, [[3, 3], [4, 3]], true) },
-      { id: "l4", name: `4/5-digit ${op} 3/4-digit`, gen: arithGen(op, [[5, 3], [4, 4], [5, 4]], true) },
-    ];
-  }
-  return [
-    { id: "l1", name: `2-digit ${op} 2-digit`, gen: arithGen(op, [[2, 2]]) },
-    { id: "l2", name: `3-digit ${op} 2-digit`, gen: arithGen(op, [[3, 2]]) },
-    { id: "l3", name: `4-digit ${op} 2-digit`, gen: arithGen(op, [[4, 2]]) },
-    { id: "l4", name: `3-digit ${op} 3-digit`, gen: arithGen(op, [[3, 3]]) },
-    { id: "l5", name: `4-digit ${op} 3-digit`, gen: arithGen(op, [[4, 3]]) },
-  ];
-}
-
-function addSubTopic(topicName, op) {
-  return {
-    written: {
-      name: `Written ${topicName}`,
-      desc: "Column method — use the working-out pad",
-      scratch: true,
-      levels: addSubLevels(op, true),
-    },
-    mental: {
-      name: `Mental ${topicName}`,
-      desc: "Two numbers, all in your head",
-      levels: addSubLevels(op, false),
-    },
-    mental3: {
-      name: `Mental ${topicName}: 3+ Numbers`,
-      desc: "Three or four numbers, all in your head",
-      levels: [
-        { id: "l1", name: "Three 2-digit numbers", gen: arithGen(op, [[2, 2, 2]]) },
-        { id: "l2", name: "Four 2-digit numbers", gen: arithGen(op, [[2, 2, 2, 2]]) },
-        { id: "l3", name: "One 3-digit, two 2-digit", gen: arithGen(op, [[3, 2, 2]]) },
-      ],
-    },
-  };
-}
-
-const TOPICS = {
-  addition: {
-    name: "Addition",
-    icon: "+",
-    color: "linear-gradient(135deg, #34d399, #059669)",
-    subtopics: addSubTopic("Addition", "+"),
-  },
-  subtraction: {
-    name: "Subtraction",
-    icon: "−",
-    color: "linear-gradient(135deg, #60a5fa, #4f46e5)",
-    subtopics: addSubTopic("Subtraction", "−"),
-  },
-  multiplication: {
-    name: "Multiplication",
-    icon: "×",
-    color: "linear-gradient(135deg, #fbbf24, #ea580c)",
-    subtopics: {
-      written: {
-        name: "Written Multiplication",
-        desc: "Column method — use the working-out pad",
-        scratch: true,
-        levels: [
-          { id: "l1", name: "2-digit × 1-digit", gen: mulWrittenGen([[2, 1]]) },
-          { id: "l2", name: "3-digit × 1-digit", gen: mulWrittenGen([[3, 1]]) },
-          { id: "l3", name: "4-digit × 1-digit", gen: mulWrittenGen([[4, 1]]) },
-          { id: "l4", name: "2-digit × 2-digit", gen: mulWrittenGen([[2, 2]]) },
-          { id: "l5", name: "3-digit × 2-digit", gen: mulWrittenGen([[3, 2]]) },
-        ],
-      },
-      worded: {
-        name: "Worded Multiplication",
-        desc: "Real-life multiplication problems",
-        levels: [
-          { id: "l1", name: "Times tables (up to 12 × 12)", gen: mulWordGen([2, 12], [2, 12]) },
-          { id: "l2", name: "2-digit × 1-digit", gen: mulWordGen([13, 99], [2, 9]) },
-          { id: "l3", name: "2-digit × 2-digit", gen: mulWordGen([13, 99], [12, 25]) },
-        ],
-      },
-      mental: {
-        name: "Mental Multiplication",
-        desc: "Up to 12 × a 2-digit number, in your head",
-        levels: [
-          { id: "l1", name: "× 13–19", gen: mulMentalGen(13, 19) },
-          { id: "l2", name: "× 20–39", gen: mulMentalGen(20, 39) },
-          { id: "l3", name: "× 40–59", gen: mulMentalGen(40, 59) },
-          { id: "l4", name: "× 60–79", gen: mulMentalGen(60, 79) },
-          { id: "l5", name: "× 80–99", gen: mulMentalGen(80, 99) },
-        ],
-      },
-      triple: {
-        name: "Multiplying Three Numbers",
-        desc: "a × b × c, all in your head",
-        levels: [{ id: "l1", name: "Three small numbers", gen: mulTripleGen }],
-      },
-    },
-  },
-  division: {
-    name: "Division",
-    icon: "÷",
-    color: "linear-gradient(135deg, #f472b6, #9333ea)",
-    subtopics: {
-      facts: {
-        name: "Division Facts",
-        desc: "Times-table facts in reverse",
-        levels: [
-          { id: "l1", name: "Divide by 2–5", gen: divFactsGen(2, 5) },
-          { id: "l2", name: "Divide by 6–9", gen: divFactsGen(6, 9) },
-          { id: "l3", name: "Divide by 10–12", gen: divFactsGen(10, 12) },
-        ],
-      },
-      longdiv: {
-        name: "Long Division",
-        desc: "No remainders — use the working-out pad",
-        scratch: true,
-        levels: [
-          { id: "l1", name: "1-digit divisor, 3-digit number", gen: longDivGen(2, 9, 3, false) },
-          { id: "l2", name: "1-digit divisor, 4-digit number", gen: longDivGen(2, 9, 4, false) },
-          { id: "l3", name: "2-digit divisor, 3-digit number", gen: longDivGen(11, 99, 3, false) },
-          { id: "l4", name: "2-digit divisor, 4-digit number", gen: longDivGen(11, 99, 4, false) },
-        ],
-      },
-      longdivr: {
-        name: "Long Division with Remainders",
-        desc: "Answer with a remainder, e.g. 8 R 3",
-        scratch: true,
-        levels: [
-          { id: "l1", name: "1-digit divisor, 3-digit number", gen: longDivGen(2, 9, 3, true) },
-          { id: "l2", name: "1-digit divisor, 4-digit number", gen: longDivGen(2, 9, 4, true) },
-          { id: "l3", name: "2-digit divisor, 3-digit number", gen: longDivGen(11, 99, 3, true) },
-          { id: "l4", name: "2-digit divisor, 4-digit number", gen: longDivGen(11, 99, 4, true) },
-        ],
-      },
-      worded: {
-        name: "Worded Division",
-        desc: "Real-life sharing problems",
-        levels: [
-          { id: "l1", name: "No remainder", gen: divWordGen(false) },
-          { id: "l2", name: "With remainder", gen: divWordGen(true) },
-        ],
-      },
-      mental: {
-        name: "Regular Division Practice",
-        desc: "3-digit numbers, no remainders",
-        levels: [
-          { id: "l1", name: "3-digit ÷ 1-digit", gen: divMentalGen(2, 9, 15) },
-          { id: "l2", name: "3-digit ÷ 2-digit", gen: divMentalGen(11, 46, 30) },
-        ],
-      },
-    },
-  },
-  measurement: {
-    name: "Measurement Conversion",
-    icon: "📏",
-    color: "linear-gradient(135deg, #2dd4bf, #0d9488)",
-    subtopics: Object.fromEntries(
-      Object.entries(FAMILIES).map(([id, family]) => [
-        id,
-        {
-          name: family.name,
-          desc: `1 ${family.big} = ${family.factor} ${family.small}`,
-          levels: convLevels(family),
-        },
-      ])
-    ),
-  },
-};
-
-/* Every multi-level subtopic gets a synthetic "Mixed" level. */
-function levelsOf(sub) {
-  if (sub.levels.length === 1) return sub.levels;
-  const gens = sub.levels.map((l) => l.gen);
-  return [
-    ...sub.levels,
-    { id: "mixed", name: "Mixed — All Difficulties", gen: () => pick(gens)(), mixed: true },
-  ];
-}
-
-function getLevel(sub, levelId) {
-  return levelsOf(sub).find((l) => l.id === levelId);
-}
 
 function buildRound(level) {
   return Array.from({ length: QUESTIONS_PER_ROUND }, () => level.gen());
@@ -553,9 +100,8 @@ const state = {
   levelId: null,
   questions: [],
   index: 0,
-  typed: "",
-  typedR: "",
-  activeBox: "main", // "main" | "rem" (remainder questions)
+  slotVals: {},
+  activeSlot: "main",
   correctCount: 0,
   score: 0,
   streak: 0,
@@ -574,6 +120,22 @@ function currentQuestion() {
   return state.questions[state.index];
 }
 
+function inputType(q) {
+  if (q.input) return q.input;
+  if (q.remainder !== undefined) return "remainder";
+  if (q.decimals) return "decimal";
+  return "int";
+}
+
+const SLOTS = {
+  int: ["main"],
+  decimal: ["main"],
+  remainder: ["main", "rem"],
+  fraction: ["num", "den"],
+  mixed: ["whole", "num", "den"],
+  mcq: [],
+};
+
 /* ==========================================================================
    Home, subtopic & level screens
    ========================================================================== */
@@ -584,8 +146,9 @@ function renderHome() {
   for (const [topicId, topic] of Object.entries(TOPICS)) {
     const card = document.createElement("button");
     card.className = "topic-card";
+    const iconClass = topic.iconSmall ? "topic-icon topic-icon-small" : "topic-icon";
     card.innerHTML = `
-      <div class="topic-icon" style="background:${topic.color}">${topic.icon}</div>
+      <div class="${iconClass}" style="background:${topic.color}">${topic.icon}</div>
       <div>
         <div class="card-title">${topic.name}</div>
         <div class="card-sub">${Object.keys(topic.subtopics).length} practice modes</div>
@@ -694,8 +257,6 @@ function startRound(topicId, subId, levelId) {
   state.roundStartTime = Date.now();
   state.locked = false;
 
-  $("scratch-wrap").classList.toggle("active", !!sub.scratch);
-
   clearInterval(state.timerInterval);
   state.timerInterval = setInterval(() => {
     $("quiz-timer").textContent = formatMs(Date.now() - state.roundStartTime);
@@ -704,14 +265,14 @@ function startRound(topicId, subId, levelId) {
 
   showScreen("quiz");
   showQuestion();
-  if (sub.scratch) resizeScratchpad();
 }
 
 function showQuestion() {
   const q = currentQuestion();
-  state.typed = "";
-  state.typedR = "";
-  state.activeBox = "main";
+  const type = inputType(q);
+  state.slotVals = {};
+  for (const s of SLOTS[type]) state.slotVals[s] = "";
+  state.activeSlot = SLOTS[type][0] || null;
   state.locked = false;
   state.questionStartTime = Date.now();
 
@@ -719,6 +280,11 @@ function showQuestion() {
   $("quiz-streak").textContent = `\u{1F525} ${state.streak}`;
   $("feedback").textContent = "";
   $("feedback").className = "feedback";
+
+  // question display areas
+  const svgBox = $("question-svg");
+  svgBox.innerHTML = q.svg || "";
+  svgBox.classList.toggle("active", !!q.svg);
 
   const inlineEl = $("question-inline");
   const verticalEl = $("question-vertical");
@@ -729,7 +295,6 @@ function showQuestion() {
 
   if (q.kind === "written") {
     verticalEl.classList.add("active");
-    $("answer-row").classList.add("hidden");
     const rows = $("v-rows");
     rows.innerHTML = "";
     q.numbers.forEach((n, i) => {
@@ -739,112 +304,166 @@ function showQuestion() {
     });
   } else if (q.kind === "longdiv") {
     longdivEl.classList.add("active");
-    $("answer-row").classList.remove("hidden");
     $("ld-divisor").textContent = q.divisor;
     $("ld-dividend").textContent = q.dividend;
   } else {
     inlineEl.classList.add("active");
     inlineEl.classList.toggle("q-word", !!q.wordy);
-    inlineEl.textContent = q.text;
-    $("answer-row").classList.remove("hidden");
+    if (q.textHtml) inlineEl.innerHTML = q.textHtml;
+    else inlineEl.textContent = q.text || "";
   }
 
-  $("answer-box-r").classList.toggle("active", q.remainder !== undefined);
-  $("key-dot").classList.toggle("disabled", !q.decimals);
-  if (currentSub().scratch) clearScratchpad();
+  // answer areas
+  const isWritten = q.kind === "written";
+  $("answer-row").classList.toggle("hidden", isWritten || type === "mcq" || type === "fraction" || type === "mixed");
+  $("answer-frac").classList.toggle("active", type === "fraction" || type === "mixed");
+  $("frac-whole").classList.toggle("hidden", type !== "mixed");
+  $("answer-box-r").classList.toggle("active", type === "remainder");
+
+  // numpad vs multiple choice
+  $("numpad").classList.toggle("hidden", type === "mcq");
+  $("key-dot").classList.toggle("disabled", type !== "decimal");
+  const mcqGrid = $("mcq-grid");
+  mcqGrid.classList.toggle("active", type === "mcq");
+  mcqGrid.innerHTML = "";
+  if (type === "mcq") {
+    q.options.forEach((opt, i) => {
+      const btn = document.createElement("button");
+      btn.className = "mcq-btn";
+      btn.innerHTML = opt.html;
+      btn.addEventListener("click", () => submitMcq(i, btn));
+      mcqGrid.appendChild(btn);
+    });
+  }
+
+  // scratchpad
+  const scratch = !!currentSub().scratch;
+  $("scratch-wrap").classList.toggle("active", scratch);
+  if (scratch) {
+    resizeScratchpad();
+    clearScratchpad();
+  }
+
   updateTypedDisplay();
+}
+
+function slotBoxes() {
+  return {
+    main: $("answer-box"),
+    rem: $("answer-box-r"),
+    whole: $("frac-whole"),
+    num: $("frac-num"),
+    den: $("frac-den"),
+  };
 }
 
 function updateTypedDisplay() {
   const q = currentQuestion();
+  const type = inputType(q);
+  if (type === "mcq") return;
 
   if (q.kind === "written") {
-    $("v-answer").textContent = state.typed === "" ? " " : state.typed;
+    $("v-answer").textContent = state.slotVals.main === "" ? " " : state.slotVals.main;
     return;
   }
 
-  const main = $("answer-box");
-  const unitHtml = q.unit ? `<span class="unit">${q.unit}</span>` : "";
-  main.innerHTML = (state.typed === "" ? "&nbsp;" : state.typed) + unitHtml;
-  main.classList.toggle("focus", state.activeBox === "main" && q.remainder !== undefined);
-
-  if (q.remainder !== undefined) {
-    const rem = $("answer-box-r");
-    rem.innerHTML =
-      `<span class="r-tag">R</span>` + (state.typedR === "" ? "&nbsp;" : state.typedR);
-    rem.classList.add("active");
-    rem.classList.toggle("focus", state.activeBox === "rem");
+  const boxes = slotBoxes();
+  const slots = SLOTS[type];
+  const multi = slots.length > 1;
+  for (const slot of slots) {
+    const box = boxes[slot];
+    const value = state.slotVals[slot];
+    let html = value === "" ? "&nbsp;" : value;
+    if (slot === "rem") html = `<span class="r-tag">R</span>` + html;
+    if (slot === "main" && q.unit) html += `<span class="unit">${q.unit}</span>`;
+    box.innerHTML = html;
+    box.classList.toggle("focus", multi && state.activeSlot === slot);
   }
-}
-
-function activeTyped() {
-  return state.activeBox === "rem" ? state.typedR : state.typed;
-}
-
-function setActiveTyped(value) {
-  if (state.activeBox === "rem") state.typedR = value;
-  else state.typed = value;
 }
 
 function pressKey(key) {
   if (state.locked) return;
   const q = currentQuestion();
+  const type = inputType(q);
+  if (type === "mcq") return;
+  const slots = SLOTS[type];
+  const idx = slots.indexOf(state.activeSlot);
 
   if (key === "del") {
-    const current = activeTyped();
-    if (current === "" && state.activeBox === "rem") {
-      state.activeBox = "main";
+    const current = state.slotVals[state.activeSlot];
+    if (current === "" && idx > 0) {
+      state.activeSlot = slots[idx - 1];
     } else {
-      setActiveTyped(current.slice(0, -1));
+      state.slotVals[state.activeSlot] = current.slice(0, -1);
     }
     updateTypedDisplay();
   } else if (key === "go") {
-    if (q.remainder !== undefined && state.activeBox === "main" && state.typed !== "") {
-      state.activeBox = "rem";
+    // advance to the next empty slot, or submit
+    const firstEmpty = slots.find((s) => state.slotVals[s] === "");
+    if (firstEmpty && state.slotVals[state.activeSlot] !== "") {
+      state.activeSlot = firstEmpty;
       updateTypedDisplay();
-    } else {
+    } else if (!firstEmpty) {
       submitAnswer();
+    } else if (idx < slots.length - 1 && state.slotVals[state.activeSlot] !== "") {
+      state.activeSlot = slots[idx + 1];
+      updateTypedDisplay();
     }
   } else if (key === ".") {
-    if (!q.decimals || state.activeBox === "rem") return;
-    if (!state.typed.includes(".") && state.typed.length < 8) {
-      state.typed += state.typed === "" ? "0." : ".";
+    if (type !== "decimal") return;
+    const current = state.slotVals.main;
+    if (!current.includes(".") && current.length < 8) {
+      state.slotVals.main = current === "" ? "0." : current + ".";
       updateTypedDisplay();
     }
   } else if (/^\d$/.test(key)) {
-    const current = activeTyped();
+    const current = state.slotVals[state.activeSlot];
     if (current.length < 8) {
-      setActiveTyped(current + key);
+      state.slotVals[state.activeSlot] = current + key;
       updateTypedDisplay();
     }
   }
 }
 
 function answerText(q) {
-  return q.remainder !== undefined ? `${q.answer} R ${q.remainder}` : String(q.answer);
+  const type = inputType(q);
+  if (type === "remainder") return `${q.answer} R ${q.remainder}`;
+  if (type === "fraction") return `${q.answerNum}/${q.answerDen}`;
+  if (type === "mixed") return `${q.answerWhole} ${q.answerNum}/${q.answerDen}`;
+  if (type === "mcq") return q.answerLabel;
+  return String(q.answer);
 }
 
-function submitAnswer() {
-  if (state.typed === "" || state.locked) return;
-  const q = currentQuestion();
-  if (q.remainder !== undefined && state.typedR === "") {
-    state.activeBox = "rem";
-    updateTypedDisplay();
-    return;
+function checkAnswer(q) {
+  const type = inputType(q);
+  const v = state.slotVals;
+  if (type === "remainder") {
+    return parseInt(v.main, 10) === q.answer && parseInt(v.rem, 10) === q.remainder;
   }
+  if (type === "decimal") {
+    return Math.abs(parseFloat(v.main) - q.answer) < 1e-6;
+  }
+  if (type === "fraction") {
+    const n = parseInt(v.num, 10);
+    const d = parseInt(v.den, 10);
+    if (!d) return false;
+    if (q.exact) return n === q.answerNum && d === q.answerDen;
+    return n * q.answerDen === d * q.answerNum;
+  }
+  if (type === "mixed") {
+    const w = parseInt(v.whole, 10);
+    const n = parseInt(v.num, 10);
+    const d = parseInt(v.den, 10);
+    if (!d || n >= d) return false;
+    // compare w + n/d with answerWhole + answerNum/answerDen
+    return (w * d + n) * q.answerDen === (q.answerWhole * q.answerDen + q.answerNum) * d;
+  }
+  return parseInt(v.main, 10) === q.answer;
+}
+
+function finishAnswer(correct, q) {
   state.locked = true;
-
   const elapsed = (Date.now() - state.questionStartTime) / 1000;
-  let correct;
-  if (q.remainder !== undefined) {
-    correct =
-      parseInt(state.typed, 10) === q.answer && parseInt(state.typedR, 10) === q.remainder;
-  } else if (q.decimals) {
-    correct = Math.abs(parseFloat(state.typed) - q.answer) < 1e-6;
-  } else {
-    correct = parseInt(state.typed, 10) === q.answer;
-  }
-
   const feedback = $("feedback");
 
   if (correct) {
@@ -874,6 +493,28 @@ function submitAnswer() {
   }
 
   $("quiz-streak").textContent = `\u{1F525} ${state.streak}`;
+}
+
+function submitAnswer() {
+  if (state.locked) return;
+  const q = currentQuestion();
+  const type = inputType(q);
+  const slots = SLOTS[type];
+  if (slots.some((s) => state.slotVals[s] === "")) return;
+  finishAnswer(checkAnswer(q), q);
+}
+
+function submitMcq(index, btn) {
+  if (state.locked) return;
+  const q = currentQuestion();
+  const correct = !!q.options[index].correct;
+  // highlight chosen + correct answers
+  const buttons = [...$("mcq-grid").children];
+  buttons.forEach((b, i) => {
+    if (q.options[i].correct) b.classList.add("mcq-correct");
+  });
+  if (!correct) btn.classList.add("mcq-wrong");
+  finishAnswer(correct, q);
 }
 
 function nextQuestion() {
@@ -1028,23 +669,31 @@ $("numpad").addEventListener("click", (e) => {
   if (key) pressKey(key);
 });
 
-// Tapping an answer box selects it (remainder questions only).
-$("answer-box").addEventListener("click", () => {
-  if (currentQuestion()?.remainder !== undefined && !state.locked) {
-    state.activeBox = "main";
-    updateTypedDisplay();
-  }
-});
-$("answer-box-r").addEventListener("click", () => {
-  if (currentQuestion()?.remainder !== undefined && !state.locked) {
-    state.activeBox = "rem";
-    updateTypedDisplay();
-  }
-});
+// Tapping a slot box selects it (multi-slot inputs only).
+for (const [slot, id] of Object.entries({
+  main: "answer-box", rem: "answer-box-r", whole: "frac-whole", num: "frac-num", den: "frac-den",
+})) {
+  $(id).addEventListener("click", () => {
+    const q = currentQuestion();
+    if (!q || state.locked) return;
+    if (SLOTS[inputType(q)].includes(slot)) {
+      state.activeSlot = slot;
+      updateTypedDisplay();
+    }
+  });
+}
 
 // Physical keyboard support (handy when testing on a computer)
 window.addEventListener("keydown", (e) => {
   if (!screens.quiz.classList.contains("active")) return;
+  const q = currentQuestion();
+  if (q && inputType(q) === "mcq") {
+    if (/^[1-4]$/.test(e.key)) {
+      const btn = $("mcq-grid").children[parseInt(e.key, 10) - 1];
+      if (btn) btn.click();
+    }
+    return;
+  }
   if (/^[0-9]$/.test(e.key)) pressKey(e.key);
   else if (e.key === ".") pressKey(".");
   else if (e.key === "Backspace") pressKey("del");
